@@ -1,8 +1,16 @@
 # Claude review handoff
 
-This repository contains the complete standalone CAS I/O TONE browser lab. Read README.md, GRID-RECORDINGS.md and REVIEW-FIXES.md. All modules are included; dist/ is generated output.
+## Current state: v16
 
-## Reproduce
+The standalone CAS lab plays two trig carriers, six operators, nested amplitude rules, shared effects and retrospective recall. The harmonic palette analyzes local audio into a fixed source-frame grid, supports eight seeded players, and stores/imports/renders timed takes with exact frame/member selection. Grid-score undo is one level in RAM; deleted-library-take undo is persistent. Dirty synth edits have an in-page replacement guard.
+
+High-rate feature windows now grow independently of the saved/playback grid. 88.2/96 kHz uses 4096 samples; 192 kHz uses 8192. Frame IDs remain i, starts remain i*1024, and Frame grains remain 2048 source samples. Both pitch and harmonic analysis use the larger context; near edges they prefer a complete real window, reflecting when the source is shorter. Existing 44.1/48 kHz feature results are preserved. Nine new regressions bring the Node suite to 139.
+
+Known limits: monophonic f0 can fail with near-equal-level mains hum, polyphony, transients or too few real periods. Pitch search is approximately 60–min(4000, sampleRate/8) Hz. High-rate analysis costs more and Frame grains are shorter in time (21.33 ms at 96 kHz). Corrected f0 can change Period loops and feature layouts, but saved frame IDs keep their source locations. WAV uses fresh effects histories and linear offline resampling; take configuration is a snapshot, not knob automation. No firmware/device path is included.
+
+Check next: high-rate files with attacks and short context; old high-rate take selection/audio compatibility; screen-reader behavior; browser codec/quota failures; and native/offline interpolation differences. The new [HYBRIDIZATION.md](HYBRIDIZATION.md) ranks table/grain blending and choice memory first, with integration points, controls, memory arithmetic and acceptance criteria. Its proposed modes, pitch continuity and hum notches are not implemented features.
+
+## Reproduce and inspect
 
 ```sh
 npm test
@@ -10,47 +18,19 @@ npm run build
 python serve.py
 ```
 
-There are 130 dependency-free Node checks. Test the modular app at localhost and the standalone app at /dist/index.html. CI runs the tests/build and verifies the committed standalone output matches source.
+Node.js 22+ and Python 3 are sufficient; no npm dependencies. Test the modular app at `/` and standalone at `/dist/index.html`. CI runs tests/build and requires committed dist to match source. Native storage checks at `/tests/storage.html` use generated data in an isolated database.
 
-## Follow-up review addressed in v13
+- [README.md](README.md): playing the panel, keyboard/MIDI, performance transport and scope.
+- [GRID-RECORDINGS.md](GRID-RECORDINGS.md): take format, undo, timing, source-rate compatibility and render contract.
+- [VALIDATION.md](VALIDATION.md): current evidence and the defined test matrices.
+- [THEORY.md](THEORY.md), [BUFFER-RESEARCH.md](BUFFER-RESEARCH.md), [CROSSING-MEMORY.md](CROSSING-MEMORY.md): equations and resource assumptions.
 
-- Pitch-only 50 Hz forward/backward filtering uses reflected padding to reject sub-range rumble without a first-frame transient. The chosen-lag confidence can also use the raw repeat correlation; waveform samples and harmonic FFT remain unfiltered.
-- Every non-loop buffer, including Period-cut fallback, keys its shortened window length. Shared helpers define live/offline buffer, duration and envelope decisions.
-- Middle pooled members drive colors, default selection and timbre distance. Seeded static patterns and autoplay reach all members.
-- Sparse walk/knight fallback moves to other nearby occupied sites. Extinct Life reseeds another occupied area.
-- Page/keyboard/loop groups have labeled ARIA roles. Unknown WebM duration gets a bounded native media seek before payload/decode; unresolved duration fails closed.
+## Code entry points
 
-The previous v12 fixes remain covered by their existing regression suite.
+`harmonic-grid.js` owns FFT, rate-scaled feature windows, pitch, harmonic vectors, mapping and static paths. `cell-audio.js` defines cached grain construction, period-loop playback and the shared audible-interval GrainBudget. `grid-auto.js` owns continuous players. `grid-timing.js` preserves intervals; `grid-history.js` retains immutable audio/features and cloned score/control checkpoints. `grid-recording.js` validates v3 takes and renders audio; `take-store.js` separates summary/audio/undo storage. `palette.js` binds these controls; `app.js` supplies synth/tempo/panel snapshots and the replacement guard. `engine.js` is shared live/offline DSP.
 
-## New recording paths
+Do not change the source grid to fix analysis. Add extensions to the shared engine when live/render equivalence matters. Version new persistent assets and preserve older take defaults. Use generated or user-owned test sound; add no recordings, banks, credentials, private history or machine-specific paths.
 
-- grid-recording.js validates take v3, packages exact Float32 PCM as base64, migrates compatible score v2, generates eight-partial magnitude presets and renders one score pass through the CAS DSP.
-- take-store.js saves takes in IndexedDB and uses separate summary/audio stores, one-time atomic v1 migration, summary-only rename and persistent single-level delete/undo.
-- palette.js captures source/score/settings/selection, restores takes/configuration, records pointer/arrow intervals and replays audio, selection-only or both. Source frame IDs survive mapping changes and pooled-cell selection.
-- app.js supplies synth/effect/tempo and hardware-panel navigation snapshots. Generated harmonic patches use the existing two carriers and six direct operators, with no firmware changes.
+## Review history
 
-tests/grid-recording.test.mjs has 18 checks, and tests/grid-timing.test.mjs adds seven timing/admission checks, including phased rumble, sparse grids, metadata seek cleanup, exact PCM/timing round-trips, malformed imports, legacy migration, measured harmonic spectra, live-input DSP parity, rests/chords, deterministic tails and render/voice bounds.
-
-Native browser checks cover a saved take across reloads, JSON import, actual grid playback, selection-only replay while AUDIO ASLEEP, fixed selection during audio-only replay, captured page/grid settings, generated patch export/import and 320/390-pixel layout. An eight-step browser WAV matched the exported take's fresh offline render byte for byte after PCM16 encoding. A one-second headerless WebM loaded; a 31-second headerless WebM was rejected during metadata preflight.
-
-## Limits and useful next checks
-
-A take snapshots settings at save/export/render time; it does not automate every knob motion. Grid WAV starts with fresh effects histories and excludes unrelated live notes/recall RAM clips. Offline interpolation is linear; native resampling may differ. The source cap is 30 seconds, score cap 4096 steps, WAV cap 120 seconds including tails, and active-grain cap 32. Legacy v2 metadata cannot prove audio identity. f0/residual features remain approximate; harmonic presets use eight magnitudes, without original phase/noise. Spectral morphing and firmware ports remain future work.
-
-Useful independent follow-up: compare real changing/steady sources, different browser codecs, IndexedDB quota errors, screen-reader behavior and native interpolation differences. Shared audible-interval admission now has a dense-chord lookahead-versus-render regression. Use generated or user-owned test audio; do not add recordings, banks, credentials, private history or machine-specific paths to the repository.
-
-## V14 review follow-up
-
-Read the corrected coverage statement in REVIEW-FIXES.md. The old 40 Hz test did not cover +4 dB rumble at 40/45 Hz and used coefficient ratios rather than normalized RMS. The new 50 Hz cutoff passes all 160 defined rumble cases; a separate 160-case clean matrix covers ten sine/saw frequencies from 62 to 3000 Hz. This does not claim universal pitch robustness.
-
-`grid-timing.js` preserves path intervals at disarm and shares recorded/uniform clock decisions between live playback and WAV. Changing the rate never deletes recorded intervals. `cell-audio.js` now also owns the shared GrainBudget: it reserves sounding time, so future lookahead nodes do not consume the audible limit prematurely. Dense-chord event admission matches chronological rendering in the regressions; unrelated manual traffic can still reach the native allocation guard.
-
-Fractional division values are canonical and restore into real select options. take-store.js schema v2 reads only headers for the library and rename, with audio in a separate store. V1 migration is atomic; delete keeps one persistent undo until the next delete. Six isolated native browser storage checks are available at `/tests/storage.html`. Grid actions await an in-page confirmation when the synth patch has unsaved edits; cancellation happens before replacing the take or controls.
-
-The native dense-chord check also exported a retrospective capture of live dry output. Its 0.5-second source contained 25 pulse packets with every interior gap exactly 20 ms. The corresponding offline 12-step score admitted all 96 grains and skipped none. The current browser data was left stopped after the check.
-
-## V15: score undo and loud mains hum
-
-`grid-history.js` retains one RAM checkpoint with immutable audio/feature references and cloned score/control data. The score Undo button recovers all static generators, Keep last 32, Clear, Delete step and successful source/take replacement. Take loading creates one checkpoint before source mutation, never a second checkpoint for its temporary original-order score. Exact old source/rate/frame IDs, recorded intervals, voices/rests, selection and grid settings return without reanalysis. Only take-load undo reapplies the captured synth configuration; it honors the existing dirty-patch guard. Canceled/invalid imports and canceled undo preserve the slot. Recovery stops transport/path writing. The separate persistent library-delete undo is unchanged. Six new tests include a byte-identical WAV after recovery.
-
-Mains hum near equal level is documented as competing periodic content. Reviewer-reported 50/60 Hz sweeps were correct at −20/−10 dB; loud conditions could lose pitch or read an octave low. This revision does not change the pitch detector. Read the exact reported boundary in GRID-RECORDINGS.md rather than treating the sub-range-rumble tests as coverage for loud mains hum.
+V12 corrected mapping, loops, grains, sparse navigation, metadata probing and accessibility. V13 added portable source-backed takes, harmonic presets and rendering. V14 corrected RMS-normalized rumble coverage, fractional division restore, summary-only storage, timing preservation and audible grain admission. V15 added score recovery and documented loud mains hum. V16 corrects high-rate feature analysis and expands the playing/research/hybridization documentation. Full changes and historical measurements are in [REVIEW-FIXES.md](REVIEW-FIXES.md).

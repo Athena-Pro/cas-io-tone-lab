@@ -8,11 +8,23 @@ export function fft(re, im, inverse=false) {
 const bound=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const FRAME=2048,HOP=1024,PARTIALS=16;
 export const hann=(i,n)=>.5-.5*Math.cos(2*Math.PI*i/n);
+// The playback grid is always FRAME/HOP source samples. Only the feature
+// window grows at high rates, centered on that unchanged playback frame.
+export function analysisFrameSize(sr){
+  let n=FRAME*Math.max(1,2**Math.round(Math.log2(sr/48000)));
+  // Nonstandard rates near the rounding boundary must also retain 60 Hz.
+  while(n/2-2<Math.ceil(sr/60))n*=2;
+  return n;
+}
+function reflectedSample(samples,at){
+  const span=Math.max(1,samples.length-1),wrapped=((at%(2*span))+2*span)%(2*span);
+  return samples[wrapped<=span?wrapped:2*span-wrapped]||0;
+}
 // Pitch-only 50 Hz high-pass. Forward/backward filtering with reflected padding
 // avoids a start-of-file filter transient becoming a false low fundamental.
 function pitchFrame(samples,sr,start,n){
-  const w=2*Math.PI*50/sr,c=Math.cos(w),sin=Math.sin(w),padding=Math.ceil(sr*.075),data=new Float64Array(n+2*padding),span=Math.max(1,samples.length-1);
-  for(let i=0;i<data.length;i++){const at=start+i-padding,wrapped=((at%(2*span))+2*span)%(2*span),index=wrapped<=span?wrapped:2*span-wrapped;data[i]=samples[index]||0;}
+  const w=2*Math.PI*50/sr,c=Math.cos(w),sin=Math.sin(w),padding=Math.ceil(sr*.075),data=new Float64Array(n+2*padding);
+  for(let i=0;i<data.length;i++)data[i]=reflectedSample(samples,start+i-padding);
   const filter=reverse=>{
     const stages=[.5411961001,1.3065629649].map(q=>{const a=1+sin/(2*q);return {b0:(1+c)/2/a,b1:-(1+c)/a,b2:(1+c)/2/a,a1:-2*c/a,a2:(1-sin/(2*q))/a,x1:0,x2:0,y1:0,y2:0};});
     stages[0].x1=stages[0].x2=data[reverse?data.length-1:0];
@@ -21,10 +33,16 @@ function pitchFrame(samples,sr,start,n){
   filter(false);filter(true);return data.slice(padding,padding+n);
 }
 export function analyzeFrame(samples,sr,start=0) {
-  const n=FRAME,re=new Float64Array(n),im=new Float64Array(n),ar=new Float64Array(n*2),ai=new Float64Array(n*2),sums=new Float64Array(n+1);
-  let mean=0;for(let i=0;i<n;i++)mean+=samples[start+i]||0;mean/=n;
-  const pitch=pitchFrame(samples,sr,start,n);let energy=0;
-  for(let i=0;i<n;i++){const x=(samples[start+i]||0)-mean;re[i]=x*hann(i,n);energy+=x*x;ar[i]=pitch[i];sums[i+1]=sums[i]+pitch[i]*pitch[i];}
+  const n=analysisFrameSize(sr),centered=start-(n-FRAME)/2;
+  // Prefer real context at file edges: reflecting a partial low-frequency cycle
+  // into the pitch window can itself bend the estimated period. Short sources
+  // still use reflection, as does the high-pass filter's transient padding.
+  const analysisStart=n===FRAME?start:bound(centered,0,Math.max(0,samples.length-n)),re=new Float64Array(n),im=new Float64Array(n),ar=new Float64Array(n*2),ai=new Float64Array(n*2),sums=new Float64Array(n+1);
+  const frame=n===FRAME?null:Float64Array.from({length:n},(_,i)=>reflectedSample(samples,analysisStart+i));
+  const sample=frame?i=>frame[i]:i=>samples[start+i]||0;
+  let mean=0;for(let i=0;i<n;i++)mean+=sample(i);mean/=n;
+  const pitch=pitchFrame(samples,sr,analysisStart,n);let energy=0;
+  for(let i=0;i<n;i++){const x=sample(i)-mean;re[i]=x*hann(i,n);energy+=x*x;ar[i]=pitch[i];sums[i+1]=sums[i]+pitch[i]*pitch[i];}
   const rms=Math.sqrt(energy/n);fft(re,im);const power=Float64Array.from({length:n/2},(_,i)=>re[i]**2+im[i]**2);
   let f0=0,confidence=0;
   if(rms>1e-5){fft(ar,ai);for(let i=0;i<ar.length;i++){ar[i]=ar[i]**2+ai[i]**2;ai[i]=0;}fft(ar,ai,true);
@@ -37,18 +55,18 @@ export function analyzeFrame(samples,sr,start=0) {
     if(chosen>=lo){const a=corr[chosen-1],b=corr[chosen],c=corr[chosen+1],d=bound(.5*(a-c)/(a-2*b+c||1),-.5,.5);f0=sr/(chosen+d);
       // A clean raw period can be more coherent than its reflected-filter edge.
       // Rumble rejection chooses the lag; confidence can also use the raw repeat.
-      const rawCorrelation=lag=>{let dot=0,left=0,right=0;for(let i=0;i<n-lag;i++){const x=(samples[start+i]||0)-mean,y=(samples[start+i+lag]||0)-mean;dot+=x*y;left+=x*x;right+=y*y;}return dot/Math.max(1e-20,Math.sqrt(left*right));};
+      const rawCorrelation=lag=>{let dot=0,left=0,right=0;for(let i=0;i<n-lag;i++){const x=sample(i)-mean,y=sample(i+lag)-mean;dot+=x*y;left+=x*x;right+=y*y;}return dot/Math.max(1e-20,Math.sqrt(left*right));};
       const raw=rawCorrelation(chosen);confidence=bound(Math.max(b,raw),0,1);
       // Near the lower range boundary, reflected high-pass edges can bend a
       // clean sine's period. Refine locally only when the raw repeat is strong.
-      if(f0<100&&raw>.98){let bestLag=chosen,bestRaw=raw;for(let lag=Math.max(lo,Math.floor(chosen*.96));lag<=Math.min(hi,Math.ceil(chosen*1.04));lag++){const r=rawCorrelation(lag);if(r>bestRaw){bestRaw=r;bestLag=lag;}}const a=rawCorrelation(bestLag-1),c=rawCorrelation(bestLag+1),offset=bound(.5*(a-c)/(a-2*bestRaw+c||1),-.5,.5);f0=sr/(bestLag+offset);confidence=bound(Math.max(confidence,bestRaw),0,1);}}
+      if((f0<100||n>FRAME&&f0<200)&&raw>.98){const radius=f0<100?.04:.01;let bestLag=chosen,bestRaw=raw;for(let lag=Math.max(lo,Math.floor(chosen*(1-radius)));lag<=Math.min(hi,Math.ceil(chosen*(1+radius)));lag++){const r=rawCorrelation(lag);if(r>bestRaw){bestRaw=r;bestLag=lag;}}const a=rawCorrelation(bestLag-1),c=rawCorrelation(bestLag+1),offset=bound(.5*(a-c)/(a-2*bestRaw+c||1),-.5,.5);f0=sr/(bestLag+offset);confidence=bound(Math.max(confidence,bestRaw),0,1);}}
   }
   const h=new Float64Array(PARTIALS);let total=0,odd=0,even=0,weighted=0,allEnergy=0,residual=0;
   const residualWidth=Math.min(1.5,.35*f0*n/sr);
   for(let bin=2;bin<power.length;bin++){allEnergy+=power[bin];const harmonic=f0?Math.round(bin*sr/n/f0):0;if(!harmonic||Math.abs(bin-harmonic*f0*n/sr)>residualWidth)residual+=power[bin];}
   if(f0)for(let k=1;k<=PARTIALS;k++){const at=k*f0*n/sr;if(at>=power.length-1)break;let energy=0;for(let j=Math.max(1,Math.ceil(at-1.5));j<=Math.min(power.length-1,Math.floor(at+1.5));j++)energy+=power[j];h[k-1]=Math.sqrt(energy);total+=h[k-1];weighted+=k*h[k-1];if(k%2)odd+=h[k-1];else even+=h[k-1];}
   if(total)for(let i=0;i<h.length;i++)h[i]/=total;
-  return {start,end:Math.min(start+n,samples.length),f0,confidence,rms,h,brightness:total?weighted/total:0,oddEven:total?(odd-even)/total:0,inharmonicity:allEnergy?bound(residual/allEnergy,0,1):0,residualResolutionLimited:!!f0&&f0*n/sr<5};
+  return {start,end:Math.min(start+FRAME,samples.length),f0,confidence,rms,h,brightness:total?weighted/total:0,oddEven:total?(odd-even)/total:0,inharmonicity:allEnergy?bound(residual/allEnergy,0,1):0,residualResolutionLimited:!!f0&&f0*n/sr<5};
 }
 function nearestCrossing(samples,target,radius){let best=null,distance=Infinity;for(let i=Math.max(1,Math.floor(target-radius));i<Math.min(samples.length-1,target+radius);i++)if(samples[i-1]<=0&&samples[i]>0){const at=i-1-samples[i-1]/(samples[i]-samples[i-1]);if(Math.abs(at-target)<distance){best=at;distance=Math.abs(at-target);}}return best;}
 export function periodBounds(samples,sr,piece){
