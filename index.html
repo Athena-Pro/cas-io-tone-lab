@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CAS I/O TONE · Operator Lab</title>
+  <meta name="description" content="A playable trig synthesis lab with six operators, a harmonic sample grid, clocked grain patterns, nested algorithms, shared delay/reverb, zero-crossing analysis and past-beat recall.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <div><span class="eyebrow">QUADRATURE SYNTHESIS / RESEARCH INSTRUMENT</span><h1>CAS <span>I/O</span> TONE <small>LAB / 12</small></h1></div>
+    <div class="header-actions"><span id="audio-state" class="audio-state">● AUDIO ASLEEP</span><button id="wake" class="primary">Enable audio</button><button id="audition">Play chord</button><button id="panic" class="danger">Panic <kbd>Esc</kbd></button></div>
+  </header>
+  <section class="instrument" aria-label="Virtual CAS hardware panel">
+    <div class="top-rail"><span>TRIGONOMETRIC OPERATOR SYNTHESIZER</span><span>2 CARRIERS <i>×</i> 6 MODULATORS <i>×</i> 8 VOICES</span><span class="screw">⊕</span></div>
+    <div class="console">
+      <div class="side-bank"><div id="preset-knob"></div><div id="select-knob"></div></div>
+      <div class="display-bezel">
+        <div class="lcd" id="lcd">
+          <div class="lcd-header"><span id="screen-page">HOME / COEFFICIENTS</span><span id="voice-count">0 / 8 VOICES</span></div>
+          <div class="screen-title"><strong id="patch-name">INIT / TWO PARTIALS</strong><span id="note-label">C4 · 261.6 Hz</span></div>
+          <div class="screen-body"><canvas id="scope" aria-label="Live synthesized output waveform" role="img"></canvas><div id="page-overlay" hidden></div></div>
+          <div class="lcd-footer"><span id="screen-status">READY · ENABLE AUDIO TO PLAY</span><span id="screen-level">−∞ dBFS</span></div>
+        </div>
+        <div class="screen-controls"><div class="view-switch" role="group" aria-label="Screen view"><button data-view="wave" class="active">WAVE</button><button data-view="spectrum">FFT</button><button data-view="xy">XY</button><button data-view="route">ROUTE</button></div><button id="freeze" aria-pressed="false">FREEZE</button><span id="sample-rate">48 kHz / 2×</span></div>
+        <div id="scope-sources" class="scope-sources" hidden>
+          <div id="scope-source-toggles" class="scope-source-toggles" role="group" aria-label="Visible vectorscope sources">
+            <button data-scope-source="dry" aria-label="Show dry source" aria-pressed="true"><span>━ DRY</span><output id="scope-level-dry">−∞</output></button>
+            <button data-scope-source="delay" aria-label="Show delay return" aria-pressed="true"><span>┄ DELAY</span><output id="scope-level-delay">−∞</output></button>
+            <button data-scope-source="room" aria-label="Show room return" aria-pressed="true"><span>·· ROOM</span><output id="scope-level-room">−∞</output></button>
+            <button data-scope-source="recall" aria-label="Show recalled audio" aria-pressed="true"><span>┄· RECALL</span><output id="scope-level-recall">−∞</output></button>
+          </div>
+          <label>MAP <select id="xy-map" aria-label="Vectorscope mapping"><option value="sources">Source returns</option><option value="carriers">Carrier S/C</option></select></label>
+          <label>GAIN <select id="xy-gain" aria-label="Vectorscope display gain"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option><option value="32">32×</option></select></label>
+          <button id="scope-crossings" aria-pressed="false">CROSSINGS</button>
+        </div>
+      </div>
+      <div class="side-bank"><div id="algorithm-knob"></div><div id="master-knob"></div></div>
+    </div>
+    <div class="control-deck"><div class="page-bank" aria-label="Page buttons"><button data-page="home" class="active">HOME</button><button data-page="ops">OPS / LFO</button><button data-page="alg">ALG STACK</button><button data-page="env">ENV</button><button data-page="fx">SHAPE / FX</button><button data-page="mem">MEM</button><button data-page="global">GLO</button><button data-page="seq">SEQ</button></div><div id="main-knobs" class="main-knobs"></div></div>
+    <div class="transport-rail"><div class="transport"><button id="shift" aria-pressed="false">SCL <small>fine / shift</small></button><button id="play">▶ PLAY</button><button id="rec">● REC</button><button id="hold" aria-pressed="false">HOLD</button><button id="edit">EDIT</button><button id="save">SAVE</button><button id="oct-down">OCT −</button><button id="oct-up">OCT +</button></div><span id="transport-status" aria-live="polite">STOPPED · 110 BPM</span></div>
+    <div class="keyboard-wrap"><div class="keyboard-label"><span>KEYBOARD</span><span id="octave-label">C3—C5</span><span>A W S E D F T G Y H U J K O L P ;</span></div><div id="keyboard" class="keyboard" aria-label="Playable two-octave keyboard"></div></div>
+    <div class="bottom-rail"><span id="hint">Drag knobs vertically · Scroll or arrow keys · Shift for fine adjustment · Double-click to reset</span><span>SOFTWARE EXPLORATION BUILD</span></div>
+  </section>
+
+  <section class="harmonic-palette" id="harmonic-palette" aria-labelledby="palette-title">
+    <div class="section-heading"><div><span class="eyebrow">HARMONIC PALETTE / AUDIO TO GRID TO SCORE</span><h2 id="palette-title">Find a timbre. Draw its next move.</h2></div><div class="toolbar"><button id="palette-load" data-load class="primary">Load sound</button><button id="palette-demo" data-load>Analyze CAS demo</button><button id="palette-recall" data-load>Use captured beat</button></div></div>
+    <p id="palette-status" class="palette-status" role="status">Load up to 30 seconds of audio, or analyze the built-in harmonic study. Everything stays in this browser.</p>
+    <div class="palette-controls"><label>GRID LAYOUT<select id="palette-layout"><option value="balanced">Brightness → pitch sort</option><option value="plot">Brightness / f0 plot</option><option value="pca">Harmonic PCA map</option></select></label><label>GRID SIZE<select id="palette-capacity"><option value="64" selected>8 × 8 · pooled pieces</option><option value="144">12 × 12 · pooled pieces</option><option value="256">16 × 16 · pooled pieces</option><option value="0">One cell per frame</option></select></label><label>CELL PLAYBACK<select id="palette-cut"><option value="frame">2048-sample Hann grains</option><option value="period">Period loops · hold a cell</option></select></label><label>STEPS / SECOND<input type="number" id="palette-clock" min=".166666666666" max="50" step="any" value="24"></label><label>PALETTE LEVEL<input type="range" id="palette-level" min="0" max="2" step=".01" value="1"></label></div>
+    <section class="palette-auto-panel" aria-labelledby="palette-auto-title"><div class="recall-heading"><h3 id="palette-auto-title">GRID AUTOPLAY</h3><span id="palette-auto-rate">TEMPO LINKED</span></div><div class="palette-actions"><button id="palette-auto-start" aria-pressed="false" disabled>▶ Start auto</button><button id="palette-auto-reseed">New seed</button><button id="palette-auto-keep" disabled>Keep last 32 ticks</button><span id="palette-auto-history">0 heard ticks available</span></div><div class="auto-controls"><label>PLAYER<select id="palette-auto-mode"><option value="scan">Serpentine scan</option><option value="row">Anchor row sweep</option><option value="column">Anchor column sweep</option><option value="walk">Seeded random walk</option><option value="knight">Knight walk</option><option value="orbit" selected>Trig / Lissajous orbit</option><option value="timbre">Harmonic similarity walk</option><option value="life">Conway Life · chords</option></select></label><label>CLOCK<select id="palette-auto-clock"><option value="tempo">Follow global tempo</option><option value="free">Use grid steps / second</option></select></label><label>GLOBAL BPM<input id="palette-auto-tempo" type="number" min="40" max="240" step="1" value="110"></label><label>TICKS PER BEAT<select id="palette-auto-division"><option value=".25">¼ · every four beats</option><option value=".5">½ · every two beats</option><option value="1">1 · quarter notes</option><option value="2">2 · eighth notes</option><option value="4" selected>4 · sixteenth notes</option><option value="8">8 · thirty-second notes</option></select></label></div><details class="auto-details"><summary>Movement, rhythm & pitch</summary><div class="auto-controls"><label>STRIDE <output id="palette-auto-stride-value">1</output><input id="palette-auto-stride" type="range" min="1" max="8" step="1" value="1"></label><label>HITS PER 16 <output id="palette-auto-density-value">16 / 16</output><input id="palette-auto-density" type="range" min="0" max="16" step="1" value="16"></label><label>PITCH<select id="palette-auto-scale"><option value="off">Source pitch</option><option value="major">Nearest C major</option><option value="minor">Nearest C minor</option><option value="pentatonic">Nearest C pentatonic</option></select></label><label>REPEATABLE SEED<input id="palette-auto-seed" type="number" min="1" max="4294967295" step="1" value="17321"></label><label>ORBIT X:Y<select id="palette-auto-ratio"><option value="1:1">1:1</option><option value="2:3" selected>2:3</option><option value="3:2">3:2</option><option value="3:4">3:4</option></select></label><label>WALK / ORBIT / LIFE EDGES<select id="palette-auto-boundary"><option value="bounce">Reflect · finite Life</option><option value="wrap">Wrap · toroidal Life</option></select></label><label>LIFE VOICE LIMIT<select id="palette-auto-voices"><option value="1">1</option><option value="2">2</option><option value="4" selected>4</option><option value="8">8</option></select></label></div></details><p id="palette-auto-description" class="palette-axis"></p><p class="palette-axis">Click a grid cell to steer the anchor. Cyan outline = playhead; blue trail = recent path; violet = live CA cells; amber = selected anchor. Keep last 32 ticks turns heard audio choices, rests and chords into a repeatable score. Controls reach audio after the short lookahead.</p></section>
+    <div class="palette-layout"><article class="palette-map-card"><div class="recall-heading"><h3>THE PALETTE</h3><span id="palette-grid-info">NO SOURCE LOADED</span></div><p id="palette-axes" class="palette-axis">X / dark → bright &nbsp; Y / high ↑ low</p><div id="palette-grid" class="palette-grid" role="grid" aria-label="Analyzed harmonic cells"></div><p id="palette-cell-info" class="palette-cell-info">Click a cell to hear it. Drag through cells with Write grid path armed to add steps.</p><div class="palette-members"><button id="palette-member-prev" aria-label="Previous piece in cell" disabled>←</button><select id="palette-member" aria-label="Piece in selected cell" disabled></select><button id="palette-member-next" aria-label="Next piece in cell" disabled>→</button></div><button id="palette-hold" aria-pressed="false" disabled>Hold selected cell</button><div id="palette-harmonics" class="palette-harmonics" role="img" aria-label="Selected cell normalized harmonic vector"></div></article>
+    <article class="palette-score-card"><div class="recall-heading"><h3>THE SCORE</h3><span id="palette-playing">STOPPED</span></div><div class="palette-actions"><button id="palette-play" aria-pressed="false" disabled>▶ Play pattern</button><button id="palette-write" aria-pressed="false">Write grid path</button><button id="palette-clear-score">Clear steps</button></div><div class="palette-actions"><button id="palette-original">Original order</button><button id="palette-row">Selected row</button><button id="palette-walk">Random walk</button><button id="palette-knight">Knight walk</button></div><p id="palette-score-info" class="palette-axis">0 steps</p><div id="palette-score" class="palette-score" role="group" aria-label="Pattern ring steps"></div><fieldset id="palette-step-editor" disabled><legend id="palette-step-number">NO STEPS</legend><label>GAIN<input id="palette-step-gain" type="range" min="0" max="1.5" step=".01" value="1"></label><label>LENGTH ×<input id="palette-step-length" type="range" min=".25" max="4" step=".25" value="1"></label><label>TRANSPOSE<input id="palette-step-transpose" type="range" min="-24" max="24" step="1" value="0"></label><button id="palette-delete-step">Delete step</button></fieldset><button id="palette-export" disabled>Export pattern JSON</button><p class="recall-caption">The palette is the source; the ring is the score. Steps store cells, chords or rests, gain, length, transpose and captured timing. Arrow keys skip empty cells. Use the piece selector to reach every frame in a pooled cell. Original order still addresses the full source. Changing the map updates score coordinates and preserves frame identity.</p></article></div>
+    <p class="table-note">Analysis runs once: 2048-sample Hann frames at a 1024-sample hop, FFT autocorrelation f0 and 16 normalized harmonic amplitudes. Unpitched/noisy cells retain audio but get no period loop. Period cuts use matched upward crossings with an attack/release on the voice, without a repeated wrap fade. Drifting sounds can still have seam artifacts. Sorted/PCA maps use balanced rank bins; pooled cells retain every frame. Original order at its default clock overlap-adds consecutive Hann frames; arbitrary paths, lengths and transpositions change that reconstruction. Playback joins the synth before ring/SSB/allpass, echo/room, crossing detection and recall. Voice shaper remains synth-only. Panic and hiding the tab stop the pattern. Patch JSON and C4 WAV describe the synth; Export pattern saves the score without audio.</p><p id="palette-source-memory" class="stack-fit">Source audio and cached cell buffers use browser RAM. This grid has no physical firmware port.</p>
+    <input type="file" id="palette-file" accept="audio/*,.wav,.mp3,.ogg,.flac,.m4a" hidden>
+  </section>
+
+  <section class="stack-section" aria-labelledby="stack-title">
+    <div class="section-heading"><div><span class="eyebrow">NESTED ALGORITHMS / PER VOICE</span><h2 id="stack-title">One result. The next rule.</h2></div><div class="toolbar"><button id="stack-enable" aria-pressed="false">Enable stack</button><button id="stack-demo">Try algorithm sound</button><button id="stack-clear">Clear stages</button></div></div>
+    <div class="stack-routing"><label>ALGORITHM <select id="stack-algorithm" aria-label="Stack algorithm"></select></label><label>BASE RULE <select id="stack-base" aria-label="Stack base rule"></select></label><span id="stack-status">STACK BYPASSED</span></div>
+    <p class="stack-path" id="stack-path">S + C → OUTPUT</p>
+    <div class="stack-rack" id="stack-rack"></div>
+    <p class="table-note">Each stage receives the previous result as x. Its side input y can tap S, C, an operator, or the voice’s previous output sample. Use arrows to change order. ALG STACK: SELECT chooses a stage; K1 rule, K2 side input, K3 amount/order, K4 wet; EDIT toggles the stage. ALGORITHM loads a rule template while keeping coefficients, operators and effects.</p>
+    <p class="stack-fit" id="stack-fit"></p>
+  </section>
+
+  <section class="elements-section" aria-labelledby="elements-title">
+    <div class="section-heading"><div><span class="eyebrow">TRIGONOMETRIC SOUND ELEMENTS</span><h2 id="elements-title">Shape phase. Transform sound.</h2></div><div class="toolbar"><span id="fx-status">0 / 6 EFFECTS ON</span><button id="fx-bypass" aria-pressed="false">Bypass effects</button></div></div>
+    <p class="signal-chain">PHASE WARP <span>→</span> VOICES + OPERATORS + RULE STACK <span>→</span> TRIG SHAPER <span>→</span> RING / TREM <span>→</span> SSB SHIFT <span>→</span> ALLPASS ORBIT</p>
+    <div class="element-rack" id="element-rack"></div>
+    <p class="table-note">Click an element title to put it on the main panel. SELECT chooses an FX bank; EDIT enables/bypasses it. ALGORITHM selects shaper, modulation or buffer-loop mode. Try sound loads a demonstration preset and plays a chord. Effects bypass includes the buffers below and clears their tails; carrier phase warping has its own bypass.</p>
+  </section>
+
+  <section class="buffer-section" aria-labelledby="buffer-title">
+    <div class="section-heading"><div><span class="eyebrow">BUFFER LAB / SHARED SENDS & RETURNS</span><h2 id="buffer-title">Give the trig stack a memory.</h2></div><div class="toolbar"><button id="buffer-demo">Try cascade sound</button><button id="clear-buffers">Clear buffer tails</button></div></div>
+    <div class="buffer-routing"><label>ROUTING <select id="buffer-route" aria-label="Buffer routing"><option value="parallel">Parallel echo + room</option><option value="serial">Echo → room</option></select></label><span id="buffer-levels">TAP RMS · ECHO 0.0000 / ROOM 0.0000</span></div>
+    <p class="signal-chain" id="buffer-path">STACK → TRIG INSERTS → PARALLEL ECHO / ROOM RETURNS → OUTPUT</p>
+    <div class="buffer-rack" id="buffer-rack"></div>
+    <p class="table-note">The dry signal stays present; RETURN adds stored sound. Loop controls or SCL+EDIT opens four more knobs; ALGORITHM chooses CLEAN, SINE or SINE → FOLD inside the feedback path. The loop rules are gain-normalized. Time/size changes and sine modulation can bend pitch. Parameter edits keep tails; presets clear them. Clear buffer tails leaves held voices playing. WAV includes an estimated tail, capped at 12 seconds with a short fade if capped.</p>
+    <div class="memory-planner">
+      <div class="memory-heading"><div><span class="eyebrow">HARDWARE PORT PLANNER</span><h3>Count samples before spending RAM.</h3></div><span id="buffer-reserve"></span></div>
+      <div class="memory-controls">
+        <label>Buffer rate<select id="plan-rate" aria-label="Planned buffer sample rate"><option value="22050">22.05 kHz</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select></label>
+        <label>Storage<select id="plan-format" aria-label="Planned sample storage"><option value="2">16-bit PCM</option><option value="4">32-bit float</option></select></label>
+        <label>Channels<select id="plan-channels" aria-label="Planned buffer channels"><option value="1">Mono</option><option value="2">Stereo</option></select></label>
+        <label>Placement<select id="plan-instances" aria-label="Planned buffer placement"><option value="1">Shared bus ×1</option><option value="8">Per voice ×8</option></select></label>
+        <label class="memory-time">Echo capacity <output id="plan-time-value" for="plan-time">1000 ms</output><input type="range" id="plan-time" aria-label="Planned echo capacity" min=".05" max="1" step=".01" value="1"></label>
+      </div>
+      <div class="memory-totals"><div>ECHO BUFFER<strong id="plan-delay"></strong></div><div>ROOM + DIFFUSERS<strong id="plan-room"></strong></div><div>ECHO + ROOM STORAGE<strong id="plan-total"></strong></div></div>
+      <p id="plan-note" class="table-note"></p>
+      <p class="buffer-sources">Theory: <a href="https://www.dsprelated.com/freebooks/pasp/Delay_Line_Signal_Interpolation.html" target="_blank" rel="noreferrer">Interpolated delay lines</a> · <a href="https://www.dsprelated.com/freebooks/pasp/FDN_Reverberation.html" target="_blank" rel="noreferrer">Feedback delay network reverb</a></p>
+    </div>
+  </section>
+
+  <section class="crossing-memory" aria-labelledby="crossing-memory-title">
+    <div class="section-heading"><div><span class="eyebrow">ZERO CROSSINGS / RETROSPECTIVE AUDIO</span><h2 id="crossing-memory-title">Bring an earlier beat back.</h2></div><div class="toolbar"><button id="recall-demo" class="primary">Demo: fill & recall</button><button id="recall-clear">Clear recall history</button></div></div>
+    <div class="crossing-layout">
+      <article class="recall-card">
+        <div class="recall-heading"><h3>PAST BEAT RECALL</h3><span id="recall-status">ENABLE AUDIO TO RECORD HISTORY</span></div>
+        <div class="recall-actions"><button id="recall-toggle" aria-pressed="false" disabled>GRAB PAST BEAT</button><button id="recall-grab" disabled>Grab again</button><button id="recall-arm" disabled>ARM 64 RISES</button></div>
+        <div id="recall-knobs" class="element-knobs"></div>
+        <div class="recall-options"><label>HISTORY INPUT<select id="recall-source" aria-label="Recall history input"><option value="dry">Dry / stack</option><option value="delay">Delay return</option><option value="room">Room return</option><option value="mix">Full mix before recall</option></select></label><label>PLAYBACK<select id="recall-mode" aria-label="Recall playback mode"><option value="loop">Loop captured slice</option><option value="once">One shot</option></select></label><label>CROSSING TRIGGER<select id="recall-trigger-source" aria-label="Recall crossing trigger source"><option value="dry">Dry rising edges</option><option value="delay">Delay rising edges</option><option value="room">Room rising edges</option></select></label><label>TEMPO<input id="memory-tempo" type="number" aria-label="Recall tempo BPM" min="40" max="240" step="1" value="110"></label></div>
+        <label class="align-option"><input id="recall-align" type="checkbox" checked> Snap capture start to a nearby rising crossing</label>
+        <meter id="recall-history" aria-label="Recorded recall history seconds" min="0" max="6.25" value="0"></meter><p id="recall-history-label" class="recall-history-label">0 / 6.25 s recorded</p>
+        <p id="recall-captured" class="recall-caption">First grab captures the selected earlier beat. OFF keeps that slice; ON plays it again.</p>
+      </article>
+      <article class="crossing-card">
+        <div class="recall-heading"><h3>CROSSING ACCUMULATORS</h3><button id="zc-reset">Reset counts</button></div>
+        <div class="crossing-table-wrap"><table class="crossing-table"><thead><tr><th>Source</th><th>↑</th><th>↓</th><th>Total</th><th>Edges/s</th><th>Rise interval</th><th>Segment RMS</th></tr></thead><tbody id="crossing-counts"></tbody></table></div>
+        <div class="crossing-settings"><label>HYSTERESIS ± % FS<input type="number" id="zc-hysteresis" aria-label="Crossing hysteresis percent" min=".0001" max="5" step="any" value=".03"></label><label>SILENCE GATE % FS<input type="number" id="zc-gate" aria-label="Crossing silence gate percent" min="0" max="10" step=".01" value=".1"></label></div>
+        <p class="recall-caption">Counted on every audio sample, across blocks. Hysteresis and a silence gate reject near-zero chatter. Edges/s measures waveform activity, not necessarily pitch. CROSSINGS in XY marks rising edges with filled dots and falling edges with rings.</p>
+      </article>
+    </div>
+    <p class="table-note">History keeps recording when recall is OFF. Grab chooses a ¼, ½ or 1-beat slice starting 1, 2 or 4 beats before the grab. It becomes a captured loop: OFF mutes it, ON replays it, Grab again replaces it. ARM counts the chosen number of future rising edges and grabs once. Capture keeps the beat length, uses short edge fades, and may shift its start by at most 2 ms. MEM: SELECT input, ALGORITHM loop/one-shot, EDIT recall, SCL+EDIT grab. Presets keep recall audio when the history input stays the same. Panic erases it.</p>
+    <p id="recall-memory" class="stack-fit"></p>
+  </section>
+
+  <section class="workbench">
+    <div class="section-heading"><div><span class="eyebrow">MODULATION WORKBENCH</span><h2>Six operators. Open connections.</h2></div><div class="toolbar"><button id="clear-ops">Clear operators</button><button id="import">Import patch</button><button id="export">Export patch</button><button id="wav">Render WAV</button></div></div>
+    <div class="operator-table-wrap"><table class="operator-table"><thead><tr><th>Operator</th><th>Function</th><th>Clock</th><th>Rate</th><th>Depth</th><th>Destination</th><th>PM input</th><th>PM index</th><th>Decay</th></tr></thead><tbody id="operators"></tbody></table></div>
+    <p class="table-note">Depth follows its destination: gain for A/C, ratio deviation for B/D, radians for phase/rotation. PM input uses the source operator's previous internal sample. A source can modulate another operator while its destination is OFF.</p>
+    <div class="sequence-heading"><h3>Performance loop <span id="loop-position">01 / 16</span></h3><span>REC arms → PLAY records one loop → playback. REC while playing overdubs notes.</span><div><button id="undo">Undo take</button><button id="clear-loop">Clear loop</button><button id="demo-loop">Load demo</button></div></div>
+    <div id="steps" class="steps" aria-label="Sixteen-step performance loop"></div>
+  </section>
+
+  <section class="theory-section">
+    <div class="section-heading"><div><span class="eyebrow">WORKING THEORY</span><h2>A small equation. Several synthesis families.</h2></div><span class="live-tag">EXPERIMENTS LOAD A PLAYABLE PATCH</span></div>
+    <div class="theory-layout"><div class="experiment-list" id="experiments"></div><article class="theory-detail" id="theory-detail"></article></div>
+    <details class="engine-notes"><summary>Model boundaries & implementation notes</summary><div class="notes-grid"><p>The original constant-coefficient model is <strong>y(t) = a sin(bt) + c cos(dt)</strong>. Here B and D are note-relative frequency ratios, and their time-varying values are integrated into phase. This avoids the frequency error from substituting a changing frequency directly into sin(b(t)t).</p><p>The six-operator graph and effects extend the model. Four sequential amplitude rules can follow the base output law, before voice fold/drive and ADSR. This is separate from nested operator PM. “Quotient” is a bounded waveshaper. The SSB effect uses a finite Hilbert filter; it is approximate near DC and Nyquist and introduces 127 samples of delay when active.</p><p>2× and 4× modes oversample synthesis, nested rules and the trig shaper before low-pass downsampling. Ring, Hilbert shift, allpass orbit and the shared buffer bus run at the output rate and can alias at extreme settings. The FFT shows actual output; XY shows carrier branches before the output law, stack and effects. No hardware CPU or firmware-parity claim is made.</p><p>Eight software voices, per-note ADSR, six independent modulation phases, operator decay and one internal-sample delay on operator PM loops and stack feedback. Echo and reverb share output-rate buffers; the port planner is sample-memory arithmetic, not a live rate/format switch. The loop records notes, not motion or audio. WAV adds an estimated effect tail capped at 12 seconds.</p></div></details>
+  </section>
+  <footer><span>CAS I/O TONE · OPERATOR LAB</span><span>Local sound engine. No hardware connection required.</span></footer>
+  <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+  <input type="file" id="patch-file" accept=".json,application/json" hidden>
+</main>
+<script type="module" src="app.js"></script>
+</body></html>
