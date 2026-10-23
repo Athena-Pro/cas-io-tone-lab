@@ -1,6 +1,6 @@
 # Hybrid synthesis directions for CAS I/O TONE
 
-The strongest next sound-engine experiment is a **grid-scanned harmonic table blended with a short source grain**: retain an attack's texture, then sustain and modulate its tonal body with CAS. Add **choice memory** to the grid players as a smaller control project. These are design recommendations; v16 implements the sample-rate analysis correction and documentation, while the new DSP and control modes below remain proposals.
+The strongest next sound-engine experiment is a **grid-scanned harmonic table blended with a short source grain**: retain an attack's texture, then sustain and modulate its tonal body with CAS. Add **choice memory** to the grid players as a smaller control project. These are design recommendations. V16 implemented the sample-rate analysis correction; v17 adds waveset repeat/drop on palette cells (part of section 4), two dynamical grid players (Kuramoto and standard map) and ratio-scale quantization. Everything else below remains a proposal.
 
 ## Playable combinations already available
 
@@ -65,6 +65,8 @@ Index same-direction zero crossings in stored source/capture audio, then repeat,
 
 The current streaming detector uses hysteresis and an envelope gate. Its event count is useful for triggering, but sample-accurate cuts require a separate interpolated zero location. Bound cycle lengths, reject silence, and handle DC and seam discontinuities. A repeated cycle preserves its own duration; it does not provide general transparent time stretching of polyphonic material.
 
+**Status (v17):** palette cells implement repeat (1–4) and drop (every 2nd–8th) on the centered frame, inside the grain buffer, shared by live playback and WAV rendering. Live substitution on the rolling MEM buffer and f0-grouped whole-period mode are not implemented.
+
 Prototype on a pinned capture first. A live reader that repeats too slowly can fall behind the rolling write head and lose its source. Specify freeze, drop or overwrite behavior before making it live; do not allocate an unlimited queue. Keep repeated-cycle choices deterministic in exported scores and ensure recall does not recursively feed itself unless a separately bounded feedback mode is selected.
 
 ## 5. Let a sample and an oscillator share a rule
@@ -72,6 +74,16 @@ Prototype on a pinned capture first. A live reader that repeats too slowly can f
 A useful first route is a shared insert such as `z = sin(g*sample + I*carrier)`, with a smoothed wet mix and the existing DC/master chain after it. Audio-rate ring modulation and SSB on the combined bus already work; this proposal adds an explicit side input rather than another layer of parallel effects.
 
 Today, external grains enter after the per-voice operator/stack calculations. They cannot simply be named as an operator PM source. A per-voice version would require a new causal tap, source alignment and a defined delay; the same tap must exist offline. Start with one post-mix rule so its cost does not multiply by polyphony. If the rule enters delay feedback, use the existing gain-bounded loop family rather than arbitrary full-depth stack composition. Test silence, DC, extreme input gain, wet=0, bounded feedback and render parity.
+
+## Assessed external proposals (v17)
+
+A later external proposal suggested ten extensions. Three were implemented in v17 (waveset repeat/drop on cells, Kuramoto and standard-map players, ratio-scale quantization), along with golden render hashes. Notes on the rest:
+
+- **Interpolating operator ratios between cells.** The eight strongest harmonics differ from cell to cell, so interpolating ratios glides partials through inharmonic values and swaps operator identities. Section 1's fixed-harmonic table (amplitude-only interpolation, continuous phase) avoids this. The engine also reads patch values per sample without smoothing, so control-rate scanning would need smoothing to avoid zipper noise.
+- **Stack rules inside a pitch-tracked delay loop.** Plausible as a post-mix resonator tuned to the last note. Grains enter after the per-voice calculation, so a per-voice string excited by grains needs the causal tap described in section 5. Chebyshev or trig rules in feedback need an explicit loop-gain bound.
+- **Noise as phase modulation of the carriers.** PM by noise spreads and detunes the carriers' partials rather than adding a noise floor; section 3's filtered additive noise is closer to sinusoid-plus-noise models. The current `inharmonicity` value includes window leakage and is not a noise gain.
+- **Closed-loop descriptor steering.** The shared dry monitor contains grains, so following it chases the palette's own output. It needs the isolated synth-only tap described under the mosaic follower first.
+- **The 50-tick/s clock.** It caps grid event rate, not modulation: waveset processing happens inside each grain buffer, and audio-rate scanning belongs in the shared engine.
 
 ## Later experiments
 

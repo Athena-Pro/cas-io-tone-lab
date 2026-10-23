@@ -1,4 +1,4 @@
-# CAS lab validation — v16
+# CAS lab validation — v17
 
 This is a software research instrument. No physical device was accessed or flashed, and browser timing does not establish firmware headroom.
 
@@ -10,7 +10,18 @@ npm run build
 python serve.py
 ```
 
-There are **139 dependency-free Node checks**: 13 synthesis, 11 trig effects, 11 nested algorithms, 13 buffers, 5 source monitoring, 11 crossing/recall, 11 harmonic palette, 12 grid autoplay, 12 review regressions, 18 grid recording, 7 timing/grain admission, 6 score recovery and 9 sample-rate analysis. The build embeds all source/styles, checks packaged-script equality and module syntax, and writes two identical standalone HTML files. CI repeats tests/build and checks committed dist consistency.
+There are **160 dependency-free Node checks**: 13 synthesis, 11 trig effects, 11 nested algorithms, 13 buffers, 5 source monitoring, 11 crossing/recall, 11 harmonic palette, 12 grid autoplay, 12 review regressions, 18 grid recording, 7 timing/grain admission, 6 score recovery, 9 sample-rate analysis, 10 grid dynamics/ratio scales, 8 wavesets and 3 golden renders. The build embeds all source/styles, checks packaged-script equality and module syntax, and writes two identical standalone HTML files. CI repeats tests/build and checks committed dist consistency.
+
+## V17 additions
+
+- **Golden renders.** Twenty deterministic renders (initial patch, all twelve algorithms, an operator network, insert effects, serial buffer space at 4× quality, a beat-recall capture, and Frame/Period/Waveset grid takes) are hashed with SHA-256 over their Float32 PCM. x64 hosts must match exactly. V8's portable math library makes that reproducible across operating systems; other architectures may contract multiply-adds in that library, so there a 32-block RMS fingerprint within 1e-6 + 0.01% is accepted with a note. Adding the new renders left every v16-era hash unchanged, which also shows the refactored grain/render path is bit-identical for Frame and Period cuts.
+- **Kuramoto.** On an 8×8 generated grid, mean order parameter r over 300 ticks is below 0.45 at K = 0 and above 0.95 at K = 4, with mean chord size rising by more than two voices. Uncoupled, a cell an octave above fires 2.00× as often (200 versus 100 firings in 800 ticks). Silent ticks are rests, fired cells stay inside the 16-cell window and fire at most once per tick, live K changes take effect, and seeds reproduce.
+- **Standard map.** At K = 0 and 0.2 the walker visits at most two rows in 256 ticks; at K = 4 it visits at least six rows and more than 40 cells, with Reflect and Wrap. Positions land on occupied cells with holes, and STRIDE is exactly the number of map iterations per tick.
+- **Ratio scales.** Over 40–3000 Hz and three roots, every quantized pitch lands on an octave-repeating ratio of its scale within 1e-9, and no shift exceeds half the largest scale gap. The root follows the anchor cell and falls back to the median pitched f0.
+- **Wavesets.** Pure-tone wavesets equal the period within 0.01 samples; a 220+880 Hz mix yields more than 1.5× as many. Repeat 2–4 multiplies grain length by the repeat count and keeps a 330 Hz tone's crossing rate within 0.2%; dropping every Nth segment shortens by 1/N and keeps pitch. Silence and DC fall back to the exact Frame grain. Durations follow the buffer, and a 4× offline take still sounds 100 ms after onset where the Frame grain has ended.
+- **Takes.** New players, coupling, ratio scales and waveset settings round-trip through take JSON; older settings receive the defaults.
+
+Browser QA on localhost with the generated demo: Kuramoto at K = 0 reported sync r 0.20 with two-cell chords, and raising K to 4 while running locked it to r 1.00. The standard map ran at K = 3.5 with the just-major root shown (155.6 Hz for that anchor). Waveset playback at 3× ran with about five overlapping grains; switching to 1× during playback took effect without stopping. Original order followed by Undo score restored the player, K, hexany scale and waveset 4×/drop-3rd settings. No horizontal page overflow at 320 or 390 pixels, the standalone build loaded, and the console had no warnings or errors.
 
 ## High-rate analysis correction
 
@@ -37,9 +48,9 @@ Prior native browser QA verified the four static pattern undo actions, Clear, De
 
 ## Limits and proposed work
 
-The pitch estimate is monophonic and frame-local. Loud 50/60 Hz hum remains a documented limit; the prior normalized 25/40/45 Hz rumble tests are not a hum-robustness guarantee. Short, rapidly changing or polyphonic sources remain ambiguous, and the residual measure includes FFT leakage. Frame-cut grains retain sample-based length; corrected high-rate f0 can change Period loops and maps. The 50-tick/s grid clock limits high-rate native-hop reconstruction.
+The pitch estimate is monophonic and frame-local. Loud 50/60 Hz hum remains a documented limit; the prior normalized 25/40/45 Hz rumble tests are not a hum-robustness guarantee. Short, rapidly changing or polyphonic sources remain ambiguous, and the residual measure includes FFT leakage. Frame-cut grains retain sample-based length; corrected high-rate f0 can change Period loops and maps. The 50-tick/s grid clock limits event rate and high-rate native-hop reconstruction; waveset processing happens inside each grain buffer and is not limited by it.
 
-Harmonic presets retain up to eight magnitudes and reset phase. Grid settings are snapshots, WAV begins with fresh effects histories, and native interpolation can differ from offline linear resampling. Score undo is RAM-only; library delete undo is separately persistent. [HYBRIDIZATION.md](HYBRIDIZATION.md) specifies proposed table/grain, choice-memory, harmonic-trajectory, waveset and matching modes. They are not claims of implemented sound engines or measured target capacity.
+Harmonic presets retain up to eight magnitudes and reset phase. Grid settings are snapshots, WAV begins with fresh effects histories, and native interpolation can differ from offline linear resampling. Score undo is RAM-only; library delete undo is separately persistent. [HYBRIDIZATION.md](HYBRIDIZATION.md) specifies proposed table/grain, choice-memory, harmonic-trajectory, live waveset and matching modes; v17 implements only the palette-cell waveset subset. They are not claims of implemented sound engines or measured target capacity.
 
 ## V16 browser verification
 

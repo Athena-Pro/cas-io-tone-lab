@@ -1,6 +1,6 @@
 # CAS I/O TONE Lab
 
-A self-contained browser research instrument: two trigonometric carriers, six operators, nested amplitude rules, shared delay/reverb, crossing analysis, retrospective beat recall, and a harmonic sample palette with eight automatic grid players.
+A self-contained browser research instrument: two trigonometric carriers, six operators, nested amplitude rules, shared delay/reverb, crossing analysis, retrospective beat recall, and a harmonic sample palette with ten automatic grid players.
 
 This repository contains the complete standalone CAS project. It has fresh history and includes every imported module, particularly `grid-auto.js`. No device connection, firmware, patch banks or uploaded recordings are included.
 
@@ -13,6 +13,8 @@ npm test
 npm run build
 python serve.py
 ```
+
+`npm test` includes golden SHA-256 hashes of deterministic synth and grid-take renders, so any DSP edit that changes an output bit fails. After an intended sound change, run `npm run golden:update` and describe the change in the commit.
 
 Open http://127.0.0.1:8765 and click **Enable audio**. **Analyze CAS demo** supplies a generated sound; no audio asset download is needed. Choose a GRID AUTOPLAY player and press Start auto. Stop/Panic ends playback. The header keyboard also plays the synth.
 
@@ -39,9 +41,9 @@ Click Enable audio, then play the on-screen keys or **A W S E D F T G Y H U J K 
 | `engine.js` | Shared synth/effects/recall DSP factory, offline engine and generated AudioWorklet |
 | `app.js` | Main panel, presets, note transport, scope, import/export and audio wiring |
 | `harmonic-grid.js` | Shared radix-2 FFT, fixed 2048/1024 source grid, rate-scaled feature analysis, f0/harmonics, PCA and layouts |
-| `cell-audio.js` | Testable period-loop and centered Hann-grain sample construction |
+| `cell-audio.js` | Testable period-loop, waveset and centered Hann-grain sample construction |
 | `audio-file.js` | Metadata preflight before payload read/decode, with duration checks |
-| `grid-auto.js` | Eight seeded continuous grid players and rhythm/scale rules |
+| `grid-auto.js` | Ten seeded continuous grid players, including Kuramoto and standard-map dynamics, and rhythm/12-TET/ratio-scale rules |
 | `grid-recording.js` | Validated portable takes, harmonic patch generation and offline score audio |
 | `take-store.js` | Separate IndexedDB summary/audio stores, migration, rename and reversible deletion |
 | `grid-timing.js` | Preserved recorded timing, explicit clock modes and path finalization |
@@ -49,7 +51,7 @@ Click Enable audio, then play the on-screen keys or **A W S E D F T G Y H U J K 
 | `palette.js` | Grid/member controls, source loading, native grain scheduling and pattern capture |
 | `index.html`, `style.css` | Instrument and responsive UI |
 | `build.mjs` | Inline bundler and packaged-script syntax/source checks |
-| `tests/` | 139 dependency-free Node checks, including generated worklet parity and review regressions |
+| `tests/` | 160 dependency-free Node checks, including generated worklet parity, golden PCM hashes and review regressions |
 
 ## Palette workflow
 
@@ -57,9 +59,9 @@ Load local audio up to 30 seconds, analyze the built-in demo, or analyze a captu
 
 The default 8x8 palette pools nearby frames. Its member selector reaches every stored frame; 12x12, 16x16 and one-cell-per-frame sizes are available. Layouts are brightness/pitch column ranks, a pitched-only descriptor plot with an unpitched corner, and balanced PC1/PC2 rank columns. Arrow keys skip empty cells and maintain a roving tab stop. Middle members represent pooled cells; static pattern buttons and autoplay choose seeded members throughout each pool. Sparse walks escape isolated sites and extinct Life reseeds other occupied areas.
 
-Frame playback uses Hann overlap-add. Short grains use a centered segment and a complete window at their shorter length. Period loops preserve matched rising zero crossings without an amplitude fade on each wrap; the held voice has its own attack/release. Pitch/rate changes also change duration; there is no independent time stretch.
+Frame playback uses Hann overlap-add. Short grains use a centered segment and a complete window at their shorter length. Period loops preserve matched rising zero crossings without an amplitude fade on each wrap; the held voice has its own attack/release. Pitch/rate changes also change duration; there is no general time stretch. **Wavesets** split the centered frame at rising zero crossings, repeat each segment 1–4 times and can drop every 2nd–8th segment before one Hann window. On steady tones repetition is a rough stretch that keeps pitch; on complex tones, where a cycle holds several wavesets, it reshapes the waveform.
 
-Automatic players: serpentine scan, row sweep, column sweep, random walk, knight walk, Lissajous orbit, harmonic-similarity walk and Conway Life chords. Controls include global-tempo sync/free rate, stride, density, C-based scale quantization, deterministic seed, boundaries and Life voice count. Click cells to steer. **Keep last 32 ticks** creates an editable take, preserving chords, rests and recorded intervals. Audio shares the effects, scope/crossing analysis and retrospective history.
+Automatic players: serpentine scan, row sweep, column sweep, random walk, knight walk, Lissajous orbit, harmonic-similarity walk, Conway Life chords, Kuramoto phase-coupled chords and a Chirikov standard-map walker. **Kuramoto** couples up to 16 cells nearest the anchor as phase oscillators whose rates follow their f0 ratios; COUPLING K moves them from free polyrhythm (K = 0) to synchronized chords. **Standard map** iterates p ← p + K sin q, q ← q + p on the grid torus: low kick traces regular orbits, high kick wanders the whole grid. Controls include global-tempo sync/free rate, stride, density, deterministic seed, boundaries, Life/sync voice count, coupling/kick K and pitch quantization: nearest C major/minor/pentatonic, or ratio scales (odd harmonic series 1–15, 5-limit just major, 1·3·5·7 hexany) rooted at the anchor cell's f0. Click cells to steer. **Keep last 32 ticks** creates an editable take, preserving chords, rests and recorded intervals. Audio shares the effects, scope/crossing analysis and retrospective history.
 
 **Grid recordings now have three outputs.** Store a take in the browser, or export/import portable v3 JSON containing source PCM, the score, settings and selection. Render one pass to WAV; restore the captured synth/effect and grid controls; or replay the exact frame/member selections silently. Combined audio and selection replay is the default. Pointer/arrow path writing captures movement intervals and reuses the last interval at the loop end. SCORE TIMING switches clocks without erasing them; kept autoplay takes retain rests, chords and intervals. Clicking a score step selects its exact frame.
 
@@ -67,13 +69,13 @@ Automatic players: serpentine scan, row sweep, column sweep, random walk, knight
 
 ## Hybridization and research
 
-[HYBRIDIZATION.md](HYBRIDIZATION.md) recommends a grid-scanned harmonic table plus source-grain blend as the next sound mode, and repeat/lock memory as a smaller grid-control project. It includes combinations playable now, proposed controls, resource arithmetic and tests. Proposed table morphing, waveset transforms, harmonic trajectories and matching/follower modes remain designs.
+[HYBRIDIZATION.md](HYBRIDIZATION.md) recommends a grid-scanned harmonic table plus source-grain blend as the next sound mode, and repeat/lock memory as a smaller grid-control project. It includes combinations playable now, proposed controls, resource arithmetic and tests. V17 implements one waveset subset, repeat/drop on palette cells; table morphing, live MEM waveset substitution, harmonic trajectories and matching/follower modes remain designs.
 
 Read [THEORY.md](THEORY.md) for the equations, [BUFFER-RESEARCH.md](BUFFER-RESEARCH.md) for echo/room and sample-memory tradeoffs, [CROSSING-MEMORY.md](CROSSING-MEMORY.md) for detectors/recall, and [VALIDATION.md](VALIDATION.md) for current evidence. None establishes physical firmware headroom.
 
 ## Current status and limits
 
-The 139 Node checks and standalone build cover DSP parity, grid analysis/players, recordings, score undo and sample-rate compatibility. Six isolated native storage checks are available at `/tests/storage.html`. Review history is in [REVIEW-FIXES.md](REVIEW-FIXES.md); current reviewer entry points are in [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md).
+The 160 Node checks and standalone build cover DSP parity, golden render hashes, grid analysis/players, wavesets, ratio scales, recordings, score undo and sample-rate compatibility. Six isolated native storage checks are available at `/tests/storage.html`. Review history is in [REVIEW-FIXES.md](REVIEW-FIXES.md); current reviewer entry points are in [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md).
 
 Feature windows grow at high sample rates while source frame IDs and Frame grain durations stay unchanged. Sources are 8–192 kHz; pitch search is approximately 60–min(4000, sampleRate/8) Hz with sufficient real cycles. At 96 kHz, Frame grains are still 21.33 ms. Short/noisy/polyphonic sources and near-equal-level mains hum remain ambiguous. Period loops can change when corrected high-rate f0 becomes available. The 50-tick/s clock limits native-hop reconstruction at high rates.
 

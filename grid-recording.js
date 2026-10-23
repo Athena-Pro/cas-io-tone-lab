@@ -2,7 +2,7 @@ import {CAS} from './engine.js';
 import {FRAME,HOP,analyzeSound} from './harmonic-grid.js';
 import {autoOptions} from './grid-auto.js';
 import {gridInterval} from './grid-timing.js';
-import {makeCellSamples,cellBufferKey,cellPlayback,GrainBudget} from './cell-audio.js';
+import {makeCellSamples,cellBufferKey,cellPlayback,GrainBudget,wavesetOptions} from './cell-audio.js';
 
 export const MAX_RENDER_SECONDS=120;
 const takeNumber=(v,fallback,lo,hi)=>Number.isFinite(v)?Math.max(lo,Math.min(hi,v)):fallback;
@@ -39,7 +39,7 @@ export function takeConfiguration(input={}){
 function takeSettings(input={}){
   const a=input.automation||{};
   return {layout:takeChoice(input.layout,['balanced','plot','pca'],'balanced'),capacity:takeChoice(input.capacity,[0,64,144,256],64),
-    cut:input.cut==='period'?'period':'frame',timing:input.timing==='uniform'?'uniform':'recorded',clock:takeNumber(input.clock,24,1/6,50),level:takeNumber(input.level,1,0,2),
+    cut:takeChoice(input.cut,['frame','period','waveset'],'frame'),waveset:wavesetOptions(input.waveset),timing:input.timing==='uniform'?'uniform':'recorded',clock:takeNumber(input.clock,24,1/6,50),level:takeNumber(input.level,1,0,2),
     automation:{...autoOptions(a),clockMode:a.clockMode==='free'?'free':'tempo',division:takeChoice(a.division,[.25,.5,1,2,4,8],4)}};
 }
 function takeSteps(input,count){
@@ -92,9 +92,9 @@ export async function renderGridTake(input,{sampleRate=48000,yieldTask=()=>new P
   for(const event of take.steps){
     const interval=gridInterval(event,settings.clock,settings.timing),notes=event.voices?.length?event.voices:[{piece:event.piece,transpose:0}],normalization=event.normalization||notes.length;
     if(!event.rest)for(const note of notes){
-      const piece=pieces[note.piece],key=cellBufferKey(piece,settings.cut,event.length);
-      if(!buffers.has(key))buffers.set(key,makeCellSamples(source.samples,piece,settings.cut,event.length));
-      const buffer=buffers.get(key),rule=cellPlayback(piece,settings.cut,event.length,event.transpose+(note.transpose||0),interval,source.sampleRate),duration=rule.duration;
+      const piece=pieces[note.piece],key=cellBufferKey(piece,settings.cut,event.length,settings.waveset);
+      if(!buffers.has(key))buffers.set(key,makeCellSamples(source.samples,piece,settings.cut,event.length,settings.waveset));
+      const buffer=buffers.get(key),rule=cellPlayback(piece,settings.cut,event.length,event.transpose+(note.transpose||0),interval,source.sampleRate,buffer.length),duration=rule.duration;
       if(budget.reserve(when,duration+.001)===null){skipped++;continue;}
       voices.push({when,duration,buffer,rate:rule.rate,gain:event.gain/Math.sqrt(normalization),exact:rule.exactFrame});end=Math.max(end,when+duration);
     }
