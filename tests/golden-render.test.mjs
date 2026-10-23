@@ -30,13 +30,14 @@ const synthCases=[
     shift:{enabled:true,hz:40,mix:.7},phaser:{enabled:true,rate:.5,mix:.5}}))],
   ['buffer-space-serial',patch({env,a:.8,c:.5,b:1,d:2,feedback:.3,cross:.2,quality:4,bits:10,drive:.5},p=>fx(p,{spaceRoute:'serial',
     delay:{enabled:true,time:.11,feedback:.5,mix:.4,mode:'sine-fold'},reverb:{enabled:true,size:.8,decay:1.6,mix:.35,mode:'sine'}}))],
+  ['harmonic-scan',patch({env,a:.8,c:.3,b:1,d:2},p=>op(p,0,{wave:'sine',rate:2,depth:.3,target:'pmB'})),{scan:{enabled:true,blend:.8,motion:.05},targets:[[0,[1,.5,.33,.25,.2,.16,.14,.12]],[.2,[0,0,1,0,.6,0,.3,0,.2]]]}],
   ['beat-recall',patch({env,a:.8,c:.5,b:1,d:2,recall:{back:1,length:.5,mix:.7,source:'dry',mode:'loop',align:true,divisor:64,triggerSource:'dry'}}),{tempo:240,grabAt:.3}]
 ];
 
-function renderSynth(p,{tempo=110,grabAt=null}={}){
-  const engine=new CAS.Engine(SR,p),out=new Float32Array(Math.round(SR*.6)),release=Math.round(SR*.35),grab=grabAt===null?-1:Math.round(SR*grabAt);
-  engine.setTempo(tempo);engine.noteOn('low',57,.9);engine.noteOn('high',64,.7);
-  for(let i=0;i<out.length;i++){if(i===release){engine.noteOff('low');engine.noteOff('high');}if(i===grab)assert.ok(engine.recall.grab(),'Recall capture should start');out[i]=engine.next();}
+function renderSynth(p,{tempo=110,grabAt=null,scan=null,targets=[]}={}){
+  const engine=new CAS.Engine(SR,p),retarget=new Map(targets.map(([at,h])=>[Math.round(SR*at),h])),out=new Float32Array(Math.round(SR*.6)),release=Math.round(SR*.35),grab=grabAt===null?-1:Math.round(SR*grabAt);
+  engine.setTempo(tempo);if(scan)engine.setScan(scan);engine.noteOn('low',57,.9);engine.noteOn('high',64,.7);
+  for(let i=0;i<out.length;i++){if(i===release){engine.noteOff('low');engine.noteOff('high');}if(i===grab)assert.ok(engine.recall.grab(),'Recall capture should start');if(retarget.has(i))engine.scanTarget(retarget.get(i));out[i]=engine.next();}
   return out;
 }
 async function renderTake(cut,options={}){

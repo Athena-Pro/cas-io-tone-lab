@@ -39,7 +39,7 @@ export function takeConfiguration(input={}){
 function takeSettings(input={}){
   const a=input.automation||{};
   return {layout:takeChoice(input.layout,['balanced','plot','pca'],'balanced'),capacity:takeChoice(input.capacity,[0,64,144,256],64),
-    cut:takeChoice(input.cut,['frame','period','waveset'],'frame'),waveset:wavesetOptions(input.waveset),timing:input.timing==='uniform'?'uniform':'recorded',clock:takeNumber(input.clock,24,1/6,50),level:takeNumber(input.level,1,0,2),
+    cut:takeChoice(input.cut,['frame','period','waveset'],'frame'),waveset:wavesetOptions(input.waveset),scan:{...CAS.sanitizeScan(input.scan),lock:input.scan?.lock===true},timing:input.timing==='uniform'?'uniform':'recorded',clock:takeNumber(input.clock,24,1/6,50),level:takeNumber(input.level,1,0,2),
     automation:{...autoOptions(a),clockMode:a.clockMode==='free'?'free':'tempo',division:takeChoice(a.division,[.25,.5,1,2,4,8],4)}};
 }
 function takeSteps(input,count){
@@ -113,7 +113,8 @@ export async function renderGridTake(input,{sampleRate=48000,yieldTask=()=>new P
     }
     if(v%16===0){progress(.35*v/Math.max(1,voices.length));await yieldTask();}
   }
-  const engine=new CAS.Engine(sampleRate,take.configuration.patch);engine.setTempo(take.configuration.tempo);
+  // Takes exclude keyboard notes, so harmonic scan only changes the grains' share (1 - BLEND).
+  const engine=new CAS.Engine(sampleRate,take.configuration.patch);engine.setTempo(take.configuration.tempo);engine.setScan(settings.scan);
   for(let i=0;i<out.length;i++){
     const fade=tail>=12&&i>out.length-sampleRate*.05?.5+.5*Math.cos(Math.PI*(i-out.length+sampleRate*.05)/(sampleRate*.05)):1;
     out[i]=engine.next(dry[i])*fade;

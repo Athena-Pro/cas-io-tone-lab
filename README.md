@@ -38,12 +38,12 @@ Click Enable audio, then play the on-screen keys or **A W S E D F T G Y H U J K 
 
 | File | Purpose |
 | --- | --- |
-| `engine.js` | Shared synth/effects/recall DSP factory, offline engine and generated AudioWorklet |
+| `engine.js` | Shared synth/effects/recall/harmonic-scan DSP factory, offline engine and generated AudioWorklet |
 | `app.js` | Main panel, presets, note transport, scope, import/export and audio wiring |
 | `harmonic-grid.js` | Shared radix-2 FFT, fixed 2048/1024 source grid, rate-scaled feature analysis, f0/harmonics, PCA and layouts |
 | `cell-audio.js` | Testable period-loop, waveset and centered Hann-grain sample construction |
 | `audio-file.js` | Metadata preflight before payload read/decode, with duration checks |
-| `grid-auto.js` | Ten seeded continuous grid players, including Kuramoto and standard-map dynamics, and rhythm/12-TET/ratio-scale rules |
+| `grid-auto.js` | Ten seeded continuous grid players, including Kuramoto and standard-map dynamics, choice memory, and rhythm/12-TET/ratio-scale rules |
 | `grid-recording.js` | Validated portable takes, harmonic patch generation and offline score audio |
 | `take-store.js` | Separate IndexedDB summary/audio stores, migration, rename and reversible deletion |
 | `grid-timing.js` | Preserved recorded timing, explicit clock modes and path finalization |
@@ -51,7 +51,7 @@ Click Enable audio, then play the on-screen keys or **A W S E D F T G Y H U J K 
 | `palette.js` | Grid/member controls, source loading, native grain scheduling and pattern capture |
 | `index.html`, `style.css` | Instrument and responsive UI |
 | `build.mjs` | Inline bundler and packaged-script syntax/source checks |
-| `tests/` | 160 dependency-free Node checks, including generated worklet parity, golden PCM hashes and review regressions |
+| `tests/` | 179 dependency-free Node checks, including generated worklet parity, golden PCM hashes and review regressions |
 
 ## Palette workflow
 
@@ -65,17 +65,21 @@ Automatic players: serpentine scan, row sweep, column sweep, random walk, knight
 
 **Grid recordings now have three outputs.** Store a take in the browser, or export/import portable v3 JSON containing source PCM, the score, settings and selection. Render one pass to WAV; restore the captured synth/effect and grid controls; or replay the exact frame/member selections silently. Combined audio and selection replay is the default. Pointer/arrow path writing captures movement intervals and reuses the last interval at the loop end. SCORE TIMING switches clocks without erasing them; kept autoplay takes retain rests, chords and intervals. Clicking a score step selects its exact frame.
 
+**Choice memory** (REPEAT · DÉJÀ VU, MEMORY LENGTH, Lock memory, Clear memory) records each player's heard events in a 1–16-tick loop. With probability REPEAT a filled slot replays its stored event, with exact frame IDs, chord voices, rests and transposition, instead of the player's new choice; the player keeps moving underneath. Lock stops new events from overwriting slots, so REPEAT 100% with Lock repeats exactly, and lower REPEAT varies around the locked phrase. HITS PER 16 still gates replays; steering the anchor changes only new material. REPEAT 0 leaves every player's sequence unchanged.
+
+**Harmonic scan** (in the selected-cell card) turns heard cells into the synth's timbre. With Scan on, each heard grid event, clicked or arrow-selected cell retargets a 16-harmonic table built from its measured magnitudes (chords average their pitched cells; unpitched cells keep the previous table). The table replaces the S carrier's sine, so B ratio, phase warp, PM, feedback, the rule stack and effects still act on it. MOTION crossfades between tables linearly while voice phases keep running; harmonics above 0.45× the output rate are skipped. BLEND weighs keyed voices (m) against the grid grains (1 − m); Lock table freezes it, and Scan to selected cell captures one cell even while locked. Phases, noise and source loudness are not reconstructed.
+
 **Generate harmonic preset** fits the selected cell's eight strongest measured harmonics to the two carriers and six operators, reports retained harmonic energy and opens an editable synth patch. Export harmonic preset creates an ordinary CAS patch JSON. Phases and noise are not reconstructed. Synth C4 WAV and grid-take WAV remain separate exports. Read [GRID-RECORDINGS.md](GRID-RECORDINGS.md) for controls, the v3 format, legacy v2 import, audio rendering and limits. Spectral morphing remains future work.
 
 ## Hybridization and research
 
-[HYBRIDIZATION.md](HYBRIDIZATION.md) recommends a grid-scanned harmonic table plus source-grain blend as the next sound mode, and repeat/lock memory as a smaller grid-control project. It includes combinations playable now, proposed controls, resource arithmetic and tests. V17 implements one waveset subset, repeat/drop on palette cells; table morphing, live MEM waveset substitution, harmonic trajectories and matching/follower modes remain designs.
+[HYBRIDIZATION.md](HYBRIDIZATION.md) is the plan for combining the palette with the synth. V18 implements its two first-ranked items, a grid-scanned harmonic table with a grain/key blend and choice memory with repeat and lock; v17 implemented one waveset subset (repeat/drop on palette cells). Harmonic trajectories, live MEM wavesets, a sample/oscillator shared rule and matching/follower modes remain designs.
 
 Read [THEORY.md](THEORY.md) for the equations, [BUFFER-RESEARCH.md](BUFFER-RESEARCH.md) for echo/room and sample-memory tradeoffs, [CROSSING-MEMORY.md](CROSSING-MEMORY.md) for detectors/recall, and [VALIDATION.md](VALIDATION.md) for current evidence. None establishes physical firmware headroom.
 
 ## Current status and limits
 
-The 160 Node checks and standalone build cover DSP parity, golden render hashes, grid analysis/players, wavesets, ratio scales, recordings, score undo and sample-rate compatibility. Six isolated native storage checks are available at `/tests/storage.html`. Review history is in [REVIEW-FIXES.md](REVIEW-FIXES.md); current reviewer entry points are in [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md).
+The 179 Node checks and standalone build cover DSP parity, golden render hashes, grid analysis/players, choice memory, harmonic scan, wavesets, ratio scales, recordings, score undo and sample-rate compatibility. Six isolated native storage checks are available at `/tests/storage.html`. Review history is in [REVIEW-FIXES.md](REVIEW-FIXES.md); current reviewer entry points are in [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md).
 
 Feature windows grow at high sample rates while source frame IDs and Frame grain durations stay unchanged. Sources are 8–192 kHz; pitch search is approximately 60–min(4000, sampleRate/8) Hz with sufficient real cycles. At 96 kHz, Frame grains are still 21.33 ms. Short/noisy/polyphonic sources and near-equal-level mains hum remain ambiguous. Period loops can change when corrected high-rate f0 becomes available. The 50-tick/s clock limits native-hop reconstruction at high rates.
 

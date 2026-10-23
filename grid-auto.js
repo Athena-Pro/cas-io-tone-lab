@@ -6,7 +6,8 @@ export const GRID_SCALES=['off','major','minor','pentatonic',...Object.keys(GRID
 const TAU=2*Math.PI,MIDDLE_C=261.6255653005986;
 export function seededRandom(seed=17321){let state=(Number(seed)>>>0)||1;return ()=>{state=(state+0x6D2B79F5)>>>0;let t=state;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
 const autoClamp=(v,a,b)=>Math.max(a,Math.min(b,Number.isFinite(Number(v))?Number(v):a));
-export function autoOptions(input={}){return {mode:GRID_AUTO_MODES.includes(input.mode)?input.mode:'orbit',seed:Math.trunc(autoClamp(input.seed??17321,1,4294967295)),stride:Math.round(autoClamp(input.stride??1,1,8)),density:Math.round(autoClamp(input.density??16,0,16)),scale:GRID_SCALES.includes(input.scale)?input.scale:'off',voices:Math.round(autoClamp(input.voices??4,1,8)),ratio:['1:1','2:3','3:2','3:4'].includes(input.ratio)?input.ratio:'2:3',boundary:input.boundary==='wrap'?'wrap':'bounce',coupling:Math.round(autoClamp(input.coupling??1,0,4)*100)/100};}
+export function autoOptions(input={}){return {mode:GRID_AUTO_MODES.includes(input.mode)?input.mode:'orbit',seed:Math.trunc(autoClamp(input.seed??17321,1,4294967295)),stride:Math.round(autoClamp(input.stride??1,1,8)),density:Math.round(autoClamp(input.density??16,0,16)),scale:GRID_SCALES.includes(input.scale)?input.scale:'off',voices:Math.round(autoClamp(input.voices??4,1,8)),ratio:['1:1','2:3','3:2','3:4'].includes(input.ratio)?input.ratio:'2:3',boundary:input.boundary==='wrap'?'wrap':'bounce',coupling:Math.round(autoClamp(input.coupling??1,0,4)*100)/100,
+  repeat:Math.round(autoClamp(input.repeat??0,0,1)*100)/100,memory:Math.round(autoClamp(input.memory??8,1,16)),lock:input.lock===true};}
 export function gridRhythm(tick,hits){hits=Math.round(autoClamp(hits,0,16));return hits>0&&(Math.max(0,Math.trunc(tick))*hits)%16<hits;}
 export function gridScaleTranspose(f0,scale,root=MIDDLE_C){if(!f0||scale==='off')return 0;const ratios=Object.hasOwn(GRID_RATIO_SCALES,scale)?GRID_RATIO_SCALES[scale]:null;
   if(ratios){if(!(root>0))return 0;const r=Math.log2(f0/root),octave=Math.floor(r);let best=0,error=Infinity;for(const k of [...ratios,2]){const d=octave+Math.log2(k)-r;if(Math.abs(d)<error){error=Math.abs(d);best=d;}}return autoClamp(12*best,-24,24);}
@@ -17,7 +18,9 @@ export function gridCoordinate(value,size,boundary='bounce'){if(size<=1)return 0
 
 export class GridAutomator {
   constructor(map,pieces,options={},anchor=0){
-    this.map=map;this.pieces=new Map(pieces.map(p=>[p.id,p]));this.options=autoOptions(options);this.available=map.cells.map((ids,i)=>ids.length?i:-1).filter(i=>i>=0);this.rng=seededRandom(this.options.seed);this.tick=0;this.phase=0;this.recent=[];this.setAnchor(anchor);
+    this.map=map;this.pieces=new Map(pieces.map(p=>[p.id,p]));this.options=autoOptions(options);this.clearMemory();
+    // Replay decisions use their own seeded stream, so REPEAT 0 leaves each player's sequence unchanged.
+    this.memoryRandom=seededRandom((this.options.seed^0x5bd1e995)>>>0||1);this.available=map.cells.map((ids,i)=>ids.length?i:-1).filter(i=>i>=0);this.rng=seededRandom(this.options.seed);this.tick=0;this.phase=0;this.recent=[];this.setAnchor(anchor);
   }
   random(){return this.rng();}
   nearest(x,y){let best=this.available[0]??-1,distance=Infinity;for(const at of this.available){const d=(at%this.map.columns-x)**2+(Math.floor(at/this.map.columns)-y)**2;if(d<distance){distance=d;best=at;}}return best;}
@@ -66,7 +69,21 @@ export class GridAutomator {
     if(o.mode==='timbre'){if(this.tick===0)return this.anchor;const current=this.pieces.get(representativeId(this.map.cells[this.position])),pool=(()=>{const fresh=this.available.filter(at=>at!==this.position&&!this.recent.slice(-3).includes(at));return fresh.length?fresh:this.available.filter(at=>at!==this.position);})().map(at=>{const p=this.pieces.get(representativeId(this.map.cells[at]));return {at,distance:current.h.reduce((sum,h,i)=>sum+(h-p.h[i])**2,0)};}).sort((a,b)=>a.distance-b.distance||a.at-b.at);return pool.length?pool[Math.floor(this.random()*Math.min(pool.length,o.stride*2))].at:this.position;}
     if(this.tick===0)return this.anchor;const moves=o.mode==='knight'?[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]:[[1,0],[-1,0],[0,1],[0,-1]],choices=[...new Set(moves.map(([dx,dy])=>{const a=this.coordinate(x+dx*o.stride,columns),b=this.coordinate(y+dy*o.stride,rows);return b*columns+a;}).filter(at=>at!==this.position&&this.map.cells[at]?.length))];if(choices.length)return choices[Math.floor(this.random()*choices.length)];const fallback=this.available.filter(at=>at!==this.position).sort((a,b)=>((a%columns-x)**2+(Math.floor(a/columns)-y)**2)-((b%columns-x)**2+(Math.floor(b/columns)-y)**2)||a-b).slice(0,4);return fallback.length?fallback[Math.floor(this.random()*fallback.length)]:this.position;
   }
+  clearMemory(){this.memory=Array(16).fill(null);}
+  memoryFill(){return this.memory.slice(0,this.options.memory).filter(Boolean).length;}
+  // Choice memory: the player advances every tick, and its event fills loop slot tick mod
+  // MEMORY. With probability REPEAT a filled slot replays its stored event instead (frame IDs,
+  // chord voices, rests and transposition). LOCK stops new events from overwriting slots,
+  // so REPEAT 1 with LOCK loops exactly; HITS PER 16 still gates replays.
   next(){
+    const fresh=this.generate();if(!this.available.length)return fresh;
+    const o=this.options,slot=fresh.tick%o.memory,stored=this.memory[slot];
+    const replay=!!stored&&o.repeat>0&&(o.repeat>=1||this.memoryRandom()<o.repeat);
+    if(replay){const {tick,alive,sync}=fresh;return {...structuredClone(stored),rest:stored.rest||!gridRhythm(tick,o.density),tick,alive,mode:o.mode,...(sync===undefined?{}:{sync}),replay:true,memorySlot:slot};}
+    if(!o.lock){const {tick,alive,sync,...kept}=fresh;this.memory[slot]=structuredClone(kept);}
+    return {...fresh,replay:false,memorySlot:slot};
+  }
+  generate(){
     if(!this.available.length)return {rest:true,voices:[],tick:this.tick++,alive:[]};const o=this.options;let cells,alive=[],extra={};
     if(o.mode==='life'){if(!this.live.size)this.seedLife();alive=[...this.live].sort((a,b)=>a-b);cells=Array.from({length:Math.min(o.voices,alive.length)},(_,i)=>alive[(this.tick*o.voices+i)%alive.length]);this.advanceLife();}
     else if(o.mode==='kuramoto'){const fired=this.stepOscillators();alive=this.oscillators.map(c=>c.at).sort((a,b)=>a-b);cells=Array.from({length:Math.min(o.voices,fired.length)},(_,i)=>fired[(this.tick*o.voices+i)%fired.length]);extra={sync:this.sync};}

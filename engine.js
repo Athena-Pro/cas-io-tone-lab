@@ -70,6 +70,20 @@ export function createCASModule() {
       default: return s + c;
     }
   }
+  // Harmonic scan: a grid cell's 16 normalized harmonic magnitudes become the S carrier's
+  // waveform, sum(k) a_k sin(k*theta), so B ratio, phase warp, PM, feedback and the nested
+  // rules all act on it. Targets crossfade linearly over MOTION seconds while voice phases
+  // keep running, so timbre changes are continuous. BLEND weighs keyed voices (m) against
+  // the external grid grains (1-m). Harmonics above 0.45x the output rate are skipped.
+  const SCAN_PARTIALS=16;
+  function sanitizeScan(input){const v=input&&typeof input==='object'?input:{};return {enabled:v.enabled===true,blend:clamp(finite(v.blend,.5),0,1),motion:clamp(finite(v.motion,.08),.005,2)};}
+  function scanVector(h){const out=new Float64Array(SCAN_PARTIALS);let sum=0;for(let k=0;k<SCAN_PARTIALS;k++){const x=Math.max(0,finite(h?.[k],0));out[k]=x;sum+=x;}if(!(sum>0))return null;for(let k=0;k<SCAN_PARTIALS;k++)out[k]/=sum;return out;}
+  function harmonicTable(theta,amps,count) {
+    // sin((k+1)x) = 2cos(x)sin(kx) - sin((k-1)x): one sine and one cosine per sample.
+    const c2=2*Math.cos(theta);let previous=0,current=Math.sin(theta),sum=0;
+    for(let k=0;k<count;k++){sum+=amps[k]*current;const next=c2*current-previous;previous=current;current=next;}
+    return sum;
+  }
   function initStack(){return {enabled:false,stages:Array.from({length:4},()=>({enabled:false,rule:'sine',source:'none',amount:1,wet:1}))};}
   function sanitizeStack(input) {
     const stack=initStack();if(!input||typeof input!=='object')return stack;
@@ -174,7 +188,7 @@ export function createCASModule() {
       this.last=0; this.s=0; this.c=0; this.dead=false; this.sr=sr;
     }
     off(p) { if (this.stage !== 3) { this.stage=3; this.releaseStep=this.env / (p.env.release*this.sr); } }
-    sample(p) {
+    sample(p,scan=null) {
       const dt=1/this.sr, e=p.env;
       if(this.stage===0) { this.env+=dt/e.attack; if(this.env>=1){this.env=1;this.stage=1;} }
       else if(this.stage===1) { this.env-=(1-e.sustain)*dt/e.decay; if(this.env<=e.sustain){this.env=e.sustain;this.stage=2;} }
@@ -201,10 +215,11 @@ export function createCASModule() {
       this.previous.set(this.nextOp);
       let a=clamp(p.a+ma,-6,6),c=clamp(p.c+mc,-6,6);
       if(rotation) {const co=Math.cos(rotation),si=Math.sin(rotation),old=a; a=a*co-c*si;c=old*si+c*co;}
-      this.pb=wrap(this.pb+this.frequency*clamp(p.b+mb,-32,32)*dt);
+      const ratioB=clamp(p.b+mb,-32,32);this.pb=wrap(this.pb+this.frequency*ratioB*dt);
       this.pd=wrap(this.pd+this.frequency*clamp(p.d+md,-32,32)*dt);
       const oldS=this.s,oldC=this.c;
-      this.s=a*Math.sin(TAU*warpPhase(this.pb,p.phaseEnabled?warpB:.5)+(p.phaseEnabled?p.phaseB:0)+pmB+this.last*p.feedback+oldC*p.cross);
+      const argS=TAU*warpPhase(this.pb,p.phaseEnabled?warpB:.5)+(p.phaseEnabled?p.phaseB:0)+pmB+this.last*p.feedback+oldC*p.cross,hzB=Math.abs(this.frequency*ratioB);
+      this.s=a*(scan?harmonicTable(argS,scan.amps,hzB>0?Math.min(SCAN_PARTIALS,Math.floor(scan.nyquist/hzB)):SCAN_PARTIALS):Math.sin(argS));
       this.c=c*Math.cos(TAU*warpPhase(this.pd,p.phaseEnabled?warpD:.5)+(p.phaseEnabled?p.phaseD:0)+pmD+this.last*p.feedback+oldS*p.cross);
       let out=combine(this.s,this.c,p.combine,Math.max(0,foldAmount))+extra;
       out=processStack(out,this.s,this.c,this.nextOp,this.last,p.stack);
@@ -422,6 +437,8 @@ export function createCASModule() {
       this.returnDCX=new Float64Array(3);this.returnDCY=new Float64Array(3);this.lastDry=0;this.lastDelay=0;this.lastRoom=0;this.lastRecall=0;
       this.recall=new BeatRecall(sr);this.crossings={dry:new CrossingCounter(sr),delay:new CrossingCounter(sr),room:new CrossingCounter(sr),recall:new CrossingCounter(sr)};this.edges=new Int8Array(4);this.crossingArm=null;
       this.volume=0;this.serial=0;this.effects=new TrigEffects(sr);this.setPatch(p);
+      // The table starts as a plain sine, so enabling scan before any cell is heard stays tonal.
+      this.scan=sanitizeScan();this.scanAmps=new Float64Array(SCAN_PARTIALS);this.scanAmps[0]=1;this.scanFrom=this.scanAmps.slice();this.scanGoal=this.scanAmps.slice();this.scanLeft=0;this.scanTotal=1;this.scanView={amps:this.scanAmps,nyquist:.45*sr};
     }
     setPatch(p) {
       const next=sanitize(p),changed=this.patch?.quality!==next.quality;
@@ -442,6 +459,8 @@ export function createCASModule() {
       this.voices.push(new Voice(id,note,velocity,this.sr*this.patch.quality,this.patch.reset?0:wrap(this.frame/this.sr*440)));
     }
     noteOff(id) {for(const v of this.voices)if(v.id===id)v.off(this.patch);}
+    setScan(config){this.scan=sanitizeScan(config);}
+    scanTarget(h){const goal=scanVector(h);if(!goal)return false;this.scanFrom.set(this.scanAmps);this.scanGoal.set(goal);this.scanTotal=Math.max(1,Math.round(this.scan.motion*this.sr));this.scanLeft=this.scanTotal;return true;}
     setTempo(bpm){this.recall.setTempo(bpm);}
     resetCrossings(){for(const counter of Object.values(this.crossings))counter.reset();this.edges.fill(0);this.crossingArm=null;}
     armRecall(){if(!this.recall.ready())return false;this.crossingArm={source:this.patch.recall.triggerSource,remaining:this.patch.recall.divisor};return true;}
@@ -450,16 +469,20 @@ export function createCASModule() {
     next(external=0) {
       const p=this.patch,q=p.quality;
       let filtered=0,bs=0,bc=0;
+      if(this.scanLeft>0){this.scanLeft--;const t=1-this.scanLeft/this.scanTotal;for(let k=0;k<SCAN_PARTIALS;k++)this.scanAmps[k]=this.scanFrom[k]+(this.scanGoal[k]-this.scanFrom[k])*t;}
+      const scan=this.scan.enabled?this.scanView:null;
       for(let k=0;k<q;k++) {
         let value=0,s=0,c=0;
-        for(const v of this.voices) {if(v.dead)continue;value+=v.sample(p);s+=v.s*v.env*v.velocity;c+=v.c*v.env*v.velocity;}
+        for(const v of this.voices) {if(v.dead)continue;value+=v.sample(p,scan);s+=v.s*v.env*v.velocity;c+=v.c*v.env*v.velocity;}
+        if(scan)value*=this.scan.blend;
         this.history[this.pos]=this.effects.shape(value);
         if(k===q-1){let at=this.pos;for(let j=0;j<this.taps.length;j++){filtered+=this.history[at]*this.taps[j];at=(at+this.taps.length-1)%this.taps.length;}bs=s;bc=c;}
         this.pos=(this.pos+1)%this.taps.length;
       }
       if(this.frame%128===0)this.voices=this.voices.filter(v=>!v.dead);
       if(p.bits<16){const levels=2**(p.bits-1);filtered=Math.round(filtered*levels)/levels;}
-      filtered=this.effects.process(filtered+clamp(Number.isFinite(external)?external:0,-8,8));
+      const grains=clamp(Number.isFinite(external)?external:0,-8,8);
+      filtered=this.effects.process(filtered+(scan?grains*(1-this.scan.blend):grains));
       const source=this.patch.recall.source,feed=source==='dry'?this.effects.dry:source==='delay'?this.effects.delayReturn:source==='room'?this.effects.roomReturn:filtered;
       const recalled=this.recall.process(feed,!p.fx.bypass);filtered+=recalled;
       const coefficient=Math.exp(-TAU*5/this.sr),dc=filtered-this.dcX+coefficient*this.dcY;this.dcX=filtered;this.dcY=dc;
@@ -476,7 +499,7 @@ export function createCASModule() {
       return output;
     }
   }
-  return {TAU,WAVES,TARGETS,MODES,STACK_RULES,STACK_SOURCES,LOOP_MODES,ROOM_TIMES,DIFFUSER_TIMES,RECALL_SECONDS,RECALL_CLIP_SECONDS,ALGORITHMS,clamp,wrap,fold,warpPhase,chebyshev,wave,combine,initStack,sanitizeStack,selectAlgorithm,algorithmIndex,stackRule,processStack,initPatch,initFX,sanitizeFX,sanitize,trigShape,Hilbert,RingBuffer,loopShape,rotateRoom,bufferPlan,tailSeconds,CrossingCounter,BeatRecall,BufferEffects,TrigEffects,Voice,Engine};
+  return {TAU,WAVES,TARGETS,MODES,STACK_RULES,STACK_SOURCES,LOOP_MODES,ROOM_TIMES,DIFFUSER_TIMES,RECALL_SECONDS,RECALL_CLIP_SECONDS,ALGORITHMS,SCAN_PARTIALS,sanitizeScan,scanVector,harmonicTable,clamp,wrap,fold,warpPhase,chebyshev,wave,combine,initStack,sanitizeStack,selectAlgorithm,algorithmIndex,stackRule,processStack,initPatch,initFX,sanitizeFX,sanitize,trigShape,Hilbert,RingBuffer,loopShape,rotateRoom,bufferPlan,tailSeconds,CrossingCounter,BeatRecall,BufferEffects,TrigEffects,Voice,Engine};
 }
 export const CAS = createCASModule();
 export function createWorkletSource() {
@@ -484,7 +507,7 @@ export function createWorkletSource() {
   class CASProcessor extends AudioWorkletProcessor {
     constructor(){super();this.engine=new CAS.Engine(sampleRate);this.queue=[];this.pendingSnapshots=[];this.samples=new Float32Array(1024);this.sines=new Float32Array(1024);this.cosines=new Float32Array(1024);this.drySamples=new Float32Array(1024);this.delaySamples=new Float32Array(1024);this.roomSamples=new Float32Array(1024);this.recallSamples=new Float32Array(1024);this.edgeSamples={dry:new Int8Array(1024),delay:new Int8Array(1024),room:new Int8Array(1024),recall:new Int8Array(1024)};this.at=0;this.count=0;this.peak=0;this.sum=0;
       this.port.onmessage=({data:m})=>{if(m.type==='panic'){this.queue=[];this.engine.panic();return;}if(m.when!=null){this.queue.push(m);this.queue.sort((a,b)=>a.when-b.when);}else this.apply(m);};}
-    apply(m){if(m.type==='patch')this.engine.setPatch(m.patch);else if(m.type==='clock')this.engine.setTempo(m.tempo);else if(m.type==='clearBuffers')this.engine.effects.buffers.reset();else if(m.type==='resetCrossings')this.engine.resetCrossings();else if(m.type==='recallSnapshot')this.pendingSnapshots.push(m.id);else if(m.type==='recall'){const r=this.engine.recall;if(m.action==='toggle')r.toggle();else if(m.action==='grab')r.grab();else if(m.action==='off')r.stop();else if(m.action==='clear'){r.clear();this.engine.crossingArm=null;}else if(m.action==='arm')this.engine.armRecall();else if(m.action==='cancel')this.engine.crossingArm=null;}else if(m.type==='on')this.engine.noteOn(m.id,m.note,m.velocity);else if(m.type==='off')this.engine.noteOff(m.id);else if(m.type==='cancel'){this.queue=this.queue.filter(e=>!String(e.id||'').startsWith(m.prefix));for(const v of this.engine.voices)if(String(v.id).startsWith(m.prefix))v.off(this.engine.patch);}}
+    apply(m){if(m.type==='patch')this.engine.setPatch(m.patch);else if(m.type==='clock')this.engine.setTempo(m.tempo);else if(m.type==='clearBuffers')this.engine.effects.buffers.reset();else if(m.type==='resetCrossings')this.engine.resetCrossings();else if(m.type==='recallSnapshot')this.pendingSnapshots.push(m.id);else if(m.type==='recall'){const r=this.engine.recall;if(m.action==='toggle')r.toggle();else if(m.action==='grab')r.grab();else if(m.action==='off')r.stop();else if(m.action==='clear'){r.clear();this.engine.crossingArm=null;}else if(m.action==='arm')this.engine.armRecall();else if(m.action==='cancel')this.engine.crossingArm=null;}else if(m.type==='scanConfig')this.engine.setScan(m.config);else if(m.type==='scanTarget')this.engine.scanTarget(m.h);else if(m.type==='on')this.engine.noteOn(m.id,m.note,m.velocity);else if(m.type==='off')this.engine.noteOff(m.id);else if(m.type==='cancel'){this.queue=this.queue.filter(e=>!String(e.id||'').startsWith(m.prefix));for(const v of this.engine.voices)if(String(v.id).startsWith(m.prefix))v.off(this.engine.patch);}}
     process(inputs,outputs){const out=outputs[0][0],incoming=inputs[0]?.[0];for(let i=0;i<out.length;i++){const t=currentTime+i/sampleRate;while(this.queue.length&&this.queue[0].when<=t)this.apply(this.queue.shift());const v=this.engine.next(incoming?.[i]||0);out[i]=v;this.samples[this.at]=v;this.sines[this.at]=this.engine.lastS;this.cosines[this.at]=this.engine.lastC;this.drySamples[this.at]=this.engine.lastDry;this.delaySamples[this.at]=this.engine.lastDelay;this.roomSamples[this.at]=this.engine.lastRoom;this.recallSamples[this.at]=this.engine.lastRecall;this.edgeSamples.dry[this.at]=this.engine.edges[0];this.edgeSamples.delay[this.at]=this.engine.edges[1];this.edgeSamples.room[this.at]=this.engine.edges[2];this.edgeSamples.recall[this.at]=this.engine.edges[3];this.at=(this.at+1)%1024;this.count++;this.sum+=v*v;this.peak=Math.max(this.peak,Math.abs(v));}
       if(!this.engine.recall.capture&&this.pendingSnapshots.length){const id=this.pendingSnapshots.shift(),snapshot=this.engine.recall.snapshot();this.port.postMessage({type:'recallSnapshot',id,snapshot},snapshot?[snapshot.data.buffer]:[]);}
       if(this.count>=sampleRate/25){const ordered=a=>Float32Array.from({length:1024},(_,i)=>a[(this.at+i)%1024]);const y=ordered(this.samples),s=ordered(this.sines),c=ordered(this.cosines),dry=ordered(this.drySamples),delay=ordered(this.delaySamples),room=ordered(this.roomSamples),recall=ordered(this.recallSamples),edges={};for(const key of ['dry','delay','room','recall'])edges[key]=Int8Array.from({length:1024},(_,i)=>this.edgeSamples[key][(this.at+i)%1024]);this.port.postMessage({type:'scope',y,s,c,dry,delay,room,recall,edges,analysis:this.engine.analysis(),buffers:this.engine.effects.buffers.meters(),peak:this.peak,rms:Math.sqrt(this.sum/this.count),voices:this.engine.voices.length,sampleRate},[y.buffer,s.buffer,c.buffer,dry.buffer,delay.buffer,room.buffer,recall.buffer,edges.dry.buffer,edges.delay.buffer,edges.room.buffer,edges.recall.buffer]);this.count=0;this.sum=0;this.peak=0;}return true;}
