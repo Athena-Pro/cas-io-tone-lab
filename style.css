@@ -30,3 +30,5 @@
 
 .palette-takes{border:1px solid #526f70;border-radius:8px;padding:22px;background:#192b29;margin:20px 0}.take-controls{display:grid;grid-template-columns:1fr 1fr;gap:16px}.take-controls label,.palette-output-label{display:flex;flex-direction:column;gap:8px;font:9px var(--mono);color:#a7c8bc;min-width:0}.take-controls input,.take-controls select,.palette-output-label select{width:100%;min-width:0;padding:9px;background:#172820;border:1px solid #486d59;border-radius:4px;color:#c8e4d4;font:11px var(--mono)}.palette-output-label{margin:18px 0}.palette-takes .palette-status{margin-bottom:6px}
 @media(max-width:500px){.palette-takes{padding:16px}.take-controls{grid-template-columns:minmax(0,1fr)}.take-controls input,.take-controls select{font-size:10px}}
+
+#grid-replace-dialog{max-width:min(480px,calc(100% - 32px));border:1px solid #77ad99;border-radius:8px;padding:24px;background:#192b24;color:#d3e8dd}#grid-replace-dialog h2{font-size:20px;margin:0 0 12px}#grid-replace-dialog p{line-height:1.7}#grid-replace-dialog::backdrop{background:#0009}

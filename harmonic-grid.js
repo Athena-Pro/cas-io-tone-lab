@@ -8,10 +8,10 @@ export function fft(re, im, inverse=false) {
 const bound=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const FRAME=2048,HOP=1024,PARTIALS=16;
 export const hann=(i,n)=>.5-.5*Math.cos(2*Math.PI*i/n);
-// Pitch-only 40 Hz high-pass. Forward/backward filtering with reflected padding
+// Pitch-only 50 Hz high-pass. Forward/backward filtering with reflected padding
 // avoids a start-of-file filter transient becoming a false low fundamental.
 function pitchFrame(samples,sr,start,n){
-  const w=2*Math.PI*40/sr,c=Math.cos(w),sin=Math.sin(w),padding=Math.ceil(sr*.075),data=new Float64Array(n+2*padding),span=Math.max(1,samples.length-1);
+  const w=2*Math.PI*50/sr,c=Math.cos(w),sin=Math.sin(w),padding=Math.ceil(sr*.075),data=new Float64Array(n+2*padding),span=Math.max(1,samples.length-1);
   for(let i=0;i<data.length;i++){const at=start+i-padding,wrapped=((at%(2*span))+2*span)%(2*span),index=wrapped<=span?wrapped:2*span-wrapped;data[i]=samples[index]||0;}
   const filter=reverse=>{
     const stages=[.5411961001,1.3065629649].map(q=>{const a=1+sin/(2*q);return {b0:(1+c)/2/a,b1:-(1+c)/a,b2:(1+c)/2/a,a1:-2*c/a,a2:(1-sin/(2*q))/a,x1:0,x2:0,y1:0,y2:0};});
@@ -37,8 +37,11 @@ export function analyzeFrame(samples,sr,start=0) {
     if(chosen>=lo){const a=corr[chosen-1],b=corr[chosen],c=corr[chosen+1],d=bound(.5*(a-c)/(a-2*b+c||1),-.5,.5);f0=sr/(chosen+d);
       // A clean raw period can be more coherent than its reflected-filter edge.
       // Rumble rejection chooses the lag; confidence can also use the raw repeat.
-      let dot=0,left=0,right=0;for(let i=0;i<n-chosen;i++){const x=(samples[start+i]||0)-mean,y=(samples[start+i+chosen]||0)-mean;dot+=x*y;left+=x*x;right+=y*y;}
-      confidence=bound(Math.max(b,dot/Math.max(1e-20,Math.sqrt(left*right))),0,1);}
+      const rawCorrelation=lag=>{let dot=0,left=0,right=0;for(let i=0;i<n-lag;i++){const x=(samples[start+i]||0)-mean,y=(samples[start+i+lag]||0)-mean;dot+=x*y;left+=x*x;right+=y*y;}return dot/Math.max(1e-20,Math.sqrt(left*right));};
+      const raw=rawCorrelation(chosen);confidence=bound(Math.max(b,raw),0,1);
+      // Near the lower range boundary, reflected high-pass edges can bend a
+      // clean sine's period. Refine locally only when the raw repeat is strong.
+      if(f0<100&&raw>.98){let bestLag=chosen,bestRaw=raw;for(let lag=Math.max(lo,Math.floor(chosen*.96));lag<=Math.min(hi,Math.ceil(chosen*1.04));lag++){const r=rawCorrelation(lag);if(r>bestRaw){bestRaw=r;bestLag=lag;}}const a=rawCorrelation(bestLag-1),c=rawCorrelation(bestLag+1),offset=bound(.5*(a-c)/(a-2*bestRaw+c||1),-.5,.5);f0=sr/(bestLag+offset);confidence=bound(Math.max(confidence,bestRaw),0,1);}}
   }
   const h=new Float64Array(PARTIALS);let total=0,odd=0,even=0,weighted=0,allEnergy=0,residual=0;
   const residualWidth=Math.min(1.5,.35*f0*n/sr);

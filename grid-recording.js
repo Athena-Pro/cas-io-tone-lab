@@ -1,7 +1,8 @@
 import {CAS} from './engine.js';
 import {FRAME,HOP,analyzeSound} from './harmonic-grid.js';
 import {autoOptions} from './grid-auto.js';
-import {makeCellSamples,cellBufferKey,cellPlayback} from './cell-audio.js';
+import {gridInterval} from './grid-timing.js';
+import {makeCellSamples,cellBufferKey,cellPlayback,GrainBudget} from './cell-audio.js';
 
 export const MAX_RENDER_SECONDS=120;
 const takeNumber=(v,fallback,lo,hi)=>Number.isFinite(v)?Math.max(lo,Math.min(hi,v)):fallback;
@@ -38,7 +39,7 @@ export function takeConfiguration(input={}){
 function takeSettings(input={}){
   const a=input.automation||{};
   return {layout:takeChoice(input.layout,['balanced','plot','pca'],'balanced'),capacity:takeChoice(input.capacity,[0,64,144,256],64),
-    cut:input.cut==='period'?'period':'frame',clock:takeNumber(input.clock,24,1/6,50),level:takeNumber(input.level,1,0,2),
+    cut:input.cut==='period'?'period':'frame',timing:input.timing==='uniform'?'uniform':'recorded',clock:takeNumber(input.clock,24,1/6,50),level:takeNumber(input.level,1,0,2),
     automation:{...autoOptions(a),clockMode:a.clockMode==='free'?'free':'tempo',division:takeChoice(a.division,[.25,.5,1,2,4,8],4)}};
 }
 function takeSteps(input,count){
@@ -86,17 +87,16 @@ export function harmonicPreset(piece,name='Cell'){
 // playback; the offline source reader interpolates linearly. Effects use the exact
 // CAS DSP with empty histories, without unrelated live notes or a recall RAM clip.
 export async function renderGridTake(input,{sampleRate=48000,yieldTask=()=>new Promise(r=>setTimeout(r,0)),progress=()=>{}}={}){
-  const take=readGridTake(input),source=takeSource(take),pieces=await analyzeSound(source.samples,source.sampleRate,{yieldTask}),buffers=new Map(),voices=[],active=[],settings=take.settings;
+  const take=readGridTake(input),source=takeSource(take),pieces=await analyzeSound(source.samples,source.sampleRate,{yieldTask}),buffers=new Map(),voices=[],budget=new GrainBudget(),settings=take.settings;
   let when=0,end=0,skipped=0;
   for(const event of take.steps){
-    const interval=event.interval||1/settings.clock,notes=event.voices?.length?event.voices:[{piece:event.piece,transpose:0}],normalization=event.normalization||notes.length;
-    for(let i=active.length-1;i>=0;i--)if(active[i]<=when+1e-9)active.splice(i,1);
+    const interval=gridInterval(event,settings.clock,settings.timing),notes=event.voices?.length?event.voices:[{piece:event.piece,transpose:0}],normalization=event.normalization||notes.length;
     if(!event.rest)for(const note of notes){
-      if(active.length>=32){skipped++;continue;}
       const piece=pieces[note.piece],key=cellBufferKey(piece,settings.cut,event.length);
       if(!buffers.has(key))buffers.set(key,makeCellSamples(source.samples,piece,settings.cut,event.length));
-      const buffer=buffers.get(key),rule=cellPlayback(piece,settings.cut,event.length,event.transpose+(note.transpose||0),interval),duration=rule.duration??buffer.length/source.sampleRate/rule.rate*Math.max(1,event.length);
-      voices.push({when,duration,buffer,rate:rule.rate,gain:event.gain/Math.sqrt(normalization),exact:rule.exactFrame});active.push(when+duration+.001);end=Math.max(end,when+duration);
+      const buffer=buffers.get(key),rule=cellPlayback(piece,settings.cut,event.length,event.transpose+(note.transpose||0),interval,source.sampleRate),duration=rule.duration;
+      if(budget.reserve(when,duration+.001)===null){skipped++;continue;}
+      voices.push({when,duration,buffer,rate:rule.rate,gain:event.gain/Math.sqrt(normalization),exact:rule.exactFrame});end=Math.max(end,when+duration);
     }
     when+=interval;
     if(when>MAX_RENDER_SECONDS)throw new Error(`WAV rendering is limited to ${MAX_RENDER_SECONDS} seconds. Shorten the score or increase its clock.`);
@@ -119,7 +119,7 @@ export async function renderGridTake(input,{sampleRate=48000,yieldTask=()=>new P
     out[i]=engine.next(dry[i])*fade;
     if(i%16384===0){progress(.35+.65*i/out.length);await yieldTask();}
   }
-  progress(1);return {samples:out,sampleRate,seconds:out.length/sampleRate,skipped,steps:take.steps.length};
+  progress(1);return {samples:out,sampleRate,seconds:out.length/sampleRate,skipped,scheduled:voices.length,steps:take.steps.length};
 }
 export function encodeTakeWav(samples,sampleRate){
   const buffer=new ArrayBuffer(44+samples.length*2),v=new DataView(buffer),text=(at,s)=>[...s].forEach((c,i)=>v.setUint8(at+i,c.charCodeAt(0)));

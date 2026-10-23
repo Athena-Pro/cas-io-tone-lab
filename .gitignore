@@ -10,3 +10,8 @@ __pycache__/
 *.syx
 *.zip
 .DS_Store
+
+*.webm
+*.aac
+*.aiff
+cas-grid-take*.json

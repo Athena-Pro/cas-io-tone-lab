@@ -492,6 +492,7 @@ function renderKeyboard(){const root=$('#keyboard');root.replaceChildren();let w
   }$('#octave-label').textContent=`C${octave}—C${octave+2}`;renderKeys();}
 function renderKeys(){const held=new Set(activeNotes.values());$$('.piano-key').forEach(k=>{const on=held.has(Number(k.dataset.note));k.classList.toggle('active',on);k.setAttribute('aria-pressed',String(on));});}
 document.addEventListener('keydown',e=>{
+  if($('#grid-replace-dialog').open)return;
   if(e.key==='Escape'){e.preventDefault();panic();return;}
   if(e.key==='Shift'){shift=true;$('#shift').setAttribute('aria-pressed','true');renderPanel();return;}
   if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
@@ -577,8 +578,14 @@ midiButton.addEventListener('click',async()=>{if(midiAccess){if(midiInput)midiIn
 try{const saved=localStorage.getItem('cas-tone-lab-patch');if(saved)bootPatch=CAS.sanitize(JSON.parse(saved));}catch{}
 if(bootPatch)patch=bootPatch;
 buildStack();buildRack();buildMemory();renderKeyboard();renderOperators();renderSteps();showExperiment(0);renderPanel();requestAnimationFrame(draw);
+let gridReplacePending=false;
+async function confirmGridPatchReplace(action){
+  if(!dirty)return true;if(gridReplacePending)return false;gridReplacePending=true;
+  const dialog=$('#grid-replace-dialog');$('#grid-replace-message').textContent=`${action} will load another synth patch. Your current synth edits have not been saved.`;
+  return new Promise(resolve=>{const finish=replace=>{dialog.close();gridReplacePending=false;$('#grid-replace-keep').onclick=$('#grid-replace-accept').onclick=dialog.oncancel=null;resolve(replace);};$('#grid-replace-keep').onclick=()=>finish(false);$('#grid-replace-accept').onclick=()=>finish(true);dialog.oncancel=e=>{e.preventDefault();finish(false);};dialog.showModal();});
+}
 function gridConfiguration(){return {patch:clone(patch),tempo,navigation:{page,view,opIndex,stackIndex,fxBank,globalGroup,octave}};}
 function restoreGridConfiguration(input){const saved=takeConfiguration(input),n=saved.navigation;panic();loadPatch(saved.patch);changeTempo(saved.tempo);opIndex=n.opIndex;stackIndex=n.stackIndex;fxBank=n.fxBank;globalGroup=n.globalGroup;octave=n.octave;renderKeyboard();setView(n.view);setPage(n.page);renderOperators();renderPanel();}
-harmonicPalette=createHarmonicPalette({ensureAudio,audio:()=>({context,node}),snapshot:recallSnapshot,notify,getTempo:()=>tempo,setTempo:changeTempo,getConfiguration:gridConfiguration,applyConfiguration:restoreGridConfiguration,applyHarmonicPreset:result=>{panic();loadPatch(result.patch);setPage('home');setView('spectrum');}});
+harmonicPalette=createHarmonicPalette({ensureAudio,audio:()=>({context,node}),snapshot:recallSnapshot,notify,getTempo:()=>tempo,setTempo:changeTempo,getConfiguration:gridConfiguration,allowPatchReplace:confirmGridPatchReplace,applyConfiguration:restoreGridConfiguration,applyHarmonicPreset:result=>{panic();loadPatch(result.patch);setPage('home');setView('spectrum');}});
 // A small public module API supports embedding and reproducible engine/panel checks.
 window.casLab={get patch(){return clone(patch);},get scope(){return scope;},get state(){return {page,opIndex,stackIndex,recordState,recordArmed,hold,pattern:clone(pattern),activeNotes:[...activeNotes],audio:context?.state||'off',dirty};},presets:clone(presets),loadPatch,setPage,setView,noteOn,noteOff,panic,ensureAudio,spectrum,encodeWav};

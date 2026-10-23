@@ -29,11 +29,12 @@ The portable build is [dist/CAS-I-O-TONE.html](dist/CAS-I-O-TONE.html); download
 | `audio-file.js` | Metadata preflight before payload read/decode, with duration checks |
 | `grid-auto.js` | Eight seeded continuous grid players and rhythm/scale rules |
 | `grid-recording.js` | Validated portable takes, harmonic patch generation and offline score audio |
-| `take-store.js` | IndexedDB storage and lightweight take-library summaries |
+| `take-store.js` | Separate IndexedDB summary/audio stores, migration, rename and reversible deletion |
+| `grid-timing.js` | Preserved recorded timing, explicit clock modes and path finalization |
 | `palette.js` | Grid/member controls, source loading, native grain scheduling and pattern capture |
 | `index.html`, `style.css` | Instrument and responsive UI |
 | `build.mjs` | Inline bundler and packaged-script syntax/source checks |
-| `tests/` | 116 dependency-free Node checks, including generated worklet parity and review regressions |
+| `tests/` | 124 dependency-free Node checks, including generated worklet parity and review regressions |
 
 ## Palette workflow
 
@@ -45,10 +46,12 @@ Frame playback uses Hann overlap-add. Short grains use a centered segment and a 
 
 Automatic players: serpentine scan, row sweep, column sweep, random walk, knight walk, Lissajous orbit, harmonic-similarity walk and Conway Life chords. Controls include global-tempo sync/free rate, stride, density, C-based scale quantization, deterministic seed, boundaries and Life voice count. Click cells to steer. **Keep last 32 ticks** creates an editable take, preserving chords, rests and recorded intervals. Audio shares the effects, scope/crossing analysis and retrospective history.
 
-**Grid recordings now have three outputs.** Store a take in the browser, or export/import portable v3 JSON containing source PCM, the score, settings and selection. Render one pass to WAV; restore the captured synth/effect and grid controls; or replay the exact frame/member selections silently. Combined audio and selection replay is the default. Pointer/arrow path writing captures timing; kept autoplay takes retain rests, chords and intervals. Clicking a score step selects its exact frame.
+**Grid recordings now have three outputs.** Store a take in the browser, or export/import portable v3 JSON containing source PCM, the score, settings and selection. Render one pass to WAV; restore the captured synth/effect and grid controls; or replay the exact frame/member selections silently. Combined audio and selection replay is the default. Pointer/arrow path writing captures movement intervals and reuses the last interval at the loop end. SCORE TIMING switches clocks without erasing them; kept autoplay takes retain rests, chords and intervals. Clicking a score step selects its exact frame.
 
 **Generate harmonic preset** fits the selected cell's eight strongest measured harmonics to the two carriers and six operators, reports retained harmonic energy and opens an editable synth patch. Export harmonic preset creates an ordinary CAS patch JSON. Phases and noise are not reconstructed. Synth C4 WAV and grid-take WAV remain separate exports. Read [GRID-RECORDINGS.md](GRID-RECORDINGS.md) for controls, the v3 format, legacy v2 import, audio rendering and limits. Spectral morphing remains future work.
 
 ## Review status
 
-Read [REVIEW-FIXES.md](REVIEW-FIXES.md) for the external review response and [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md) for the next review entry point. `npm test` currently passes 116 checks. The browser was checked on localhost for pooled members, layout coverage, sparse keyboard navigation, high pitch, metadata rejection, held loops and automation. The follow-up also covers rumble rejection, headerless WebM metadata, take persistence/import, silent selection replay, harmonic preset spectra and downloaded grid WAV parity. Browser timing/RAM are not hardware capacity measurements.
+Read [REVIEW-FIXES.md](REVIEW-FIXES.md) for the external review response and [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md) for the next review entry point. `npm test` currently passes 124 checks. The browser was checked on localhost for pooled members, layout coverage, sparse keyboard navigation, high pitch, metadata rejection, held loops and automation. V14 covers an RMS-normalized rumble phase/frame sweep, clean low tones, canonical fractional divisions, header-only storage, rename/delete/undo, preserved timing and shared live/render grain admission. The follow-up also covers headerless WebM metadata, take persistence/import, silent selection replay, harmonic preset spectra and downloaded grid WAV parity. Browser timing/RAM are not hardware capacity measurements.
+
+V14 adds a 50 Hz pitch-only cutoff with explicit RMS-level tests, canonical quarter/half division restoration, separate take summaries/audio stores with one-time migration, rename and delete/undo, retained score intervals and an in-page prompt before grid actions replace unsaved synth edits. Live and WAV playback share the same audible-interval grain allocator. Run the six native storage checks at `/tests/storage.html`. See REVIEW-FIXES.md for the corrected v13 coverage statement.

@@ -1,0 +1,27 @@
+<!doctype html><meta charset="utf-8"><title>CAS take storage checks</title>
+<style>body{font:16px/1.6 system-ui;background:#15231f;color:#d3e9dc;max-width:900px;margin:40px auto;padding:20px}button{padding:12px}pre{white-space:pre-wrap}.pass{color:#9de2bd}</style>
+<h1>Native IndexedDB storage checks</h1><p>Uses generated data in a separate temporary database. The instrument's take database and saved patch are preserved.</p><button id="run">Run isolated storage checks</button><pre id="results" role="status">Ready</pre>
+<script type="module">
+import {createTakeStore} from '../take-store.js';
+const output=document.querySelector('#results'),button=document.querySelector('#run');
+const assert=(condition,message)=>{if(!condition)throw new Error(message);};
+const requested=request=>new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+button.onclick=async()=>{
+  button.disabled=true;output.textContent='Running…';let count=0,store;const name=`cas-grid-tests-${crypto.randomUUID()}`,savedPatch=localStorage.getItem('cas-tone-lab-patch');
+  const check=async(label,fn)=>{await fn();count++;output.textContent+=`\nPASS ${count}: ${label}`;};
+  const capture=async fn=>{const original=IDBDatabase.prototype.transaction,access=[];IDBDatabase.prototype.transaction=function(names,...args){access.push(...(typeof names==='string'?[names]:names));return original.call(this,names,...args);};try{await fn();return access;}finally{IDBDatabase.prototype.transaction=original;}};
+  try{
+    const payload='generated:'.repeat(800000),legacy={id:'legacy-fixture',name:'Legacy test take',savedAt:1,take:{name:'Legacy test take',source:{data:payload},steps:[{piece:0}]}};
+    const opening=indexedDB.open(name,1);opening.onupgradeneeded=()=>opening.result.createObjectStore('takes',{keyPath:'id'});const old=await requested(opening);
+    await new Promise((resolve,reject)=>{const tx=old.transaction('takes','readwrite');tx.objectStore('takes').put(legacy);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});old.close();store=createTakeStore(indexedDB,name);
+    await check('V1 data migrates atomically and legacy audio remains intact',async()=>{const rows=await store.list(),record=await store.get(legacy.id);assert(rows.length===1&&!('take' in rows[0]),'Library returned a payload');assert(record.take.source.data===payload,'Migration changed the audio payload');});
+    await check('Listing and undo availability read no audio store',async()=>{const access=await capture(async()=>{await store.list();await store.hasDeleted();});assert(access.every(s=>s==='takeSummaries'||s==='takeUndo'),'Library query accessed takePayloads');});
+    await check('Rename changes only the summary and restores the renamed portable take',async()=>{const access=await capture(()=>store.rename(legacy.id,'Renamed fixture'));assert(access.every(s=>s==='takeSummaries'),'Rename loaded audio');const record=await store.get(legacy.id);assert(record.name==='Renamed fixture'&&record.take.name==='Renamed fixture','Rename did not reach take metadata');assert(record.take.source.data===payload,'Rename changed audio');});
+    await check('Delete removes the stored copy while keeping a reversible undo',async()=>{assert(await store.remove(legacy.id),'Delete failed');assert((await store.list()).length===0&&!await store.get(legacy.id),'Deleted take is still listed');assert(await store.hasDeleted(),'Undo is missing');});
+    await check('Undo survives a new connection and restores exact audio',async()=>{await store.close();store=createTakeStore(indexedDB,name);assert(await store.hasDeleted(),'Undo lost after reopening');assert(await store.restoreDeleted()===legacy.id,'Wrong undo record');assert((await store.get(legacy.id)).take.source.data===payload,'Undo changed audio');assert(!await store.hasDeleted(),'Undo record was not consumed');});
+    await check('New stores keep headers/audio separate, and take management preserves the synth SAVE',async()=>{await store.put({id:'new-fixture',name:'New fixture',savedAt:2,take:{source:{data:'small generated fixture'}}});const rows=await store.list();assert(rows.length===2&&rows.every(r=>Object.keys(r).sort().join(',')==='id,name,savedAt'),'Summary schema is wrong');assert(localStorage.getItem('cas-tone-lab-patch')===savedPatch,'Synth patch storage changed');});
+    output.textContent+=`\n\n${count} native storage checks passed.`;output.className='pass';
+  }catch(error){output.textContent+=`\nFAIL: ${error.stack||error.message}`;}
+  finally{await store?.close();if(name.startsWith('cas-grid-tests-'))await requested(indexedDB.deleteDatabase(name));button.disabled=false;}
+};
+</script>

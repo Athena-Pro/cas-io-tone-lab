@@ -8,10 +8,22 @@ import {makeGridTake,readGridTake,takeSource,harmonicPreset,renderGridTake,encod
 let count=0;async function test(name,fn){await fn();console.log(`ok ${++count} · ${name}`);}
 const noYield=async()=>{},sr=48000,source=Float32Array.from({length:8192},(_,i)=>.4*Math.sin(2*Math.PI*240*i/sr)),base={name:'Test take',sourceName:'Generated tone',samples:source,sampleRate:sr,configuration:{patch:CAS.initPatch(),tempo:123,navigation:{page:'ops',view:'xy',opIndex:5}},settings:{clock:10,capacity:64,level:.5},selection:{piece:2,step:0,output:'navigation'},steps:[{piece:0,gain:.7,length:.5,transpose:0,interval:.1}]};
 const take=extra=>makeGridTake({...base,...extra}),energy=a=>a.reduce((s,x)=>s+x*x,0);
-await test('Pitch high-pass rejects sub-range rumble without modifying stored audio, including first-frame warmup',()=>{
-  for(const [f,rumble,db] of [[220,25,-2],[220,25,4],[330,40,-2]])for(const phase of [0,.7,2.1])for(const start of [0,4096]){
-    const signal=Float32Array.from({length:start+FRAME},(_,i)=>{let x=0;for(let k=1;k<=16;k++)x+=Math.sin(2*Math.PI*f*k*i/sr+phase)/k;return .25*x+.25*10**(db/20)*Math.sin(2*Math.PI*rumble*i/sr+phase);}),before=signal.slice(),p=analyzeFrame(signal,sr,start);
-    assert.ok(Math.abs(p.f0/f-1)<.006,`${f}+${rumble}, ${db}dB, phase ${phase}: ${p.f0}`);assert.deepEqual(signal,before);
+await test('RMS-normalized rumble sweep: eight independent phases by four frame positions, including +4 dB at 40/45 Hz',()=>{
+  const starts=[0,1024,4096,8192],rms=a=>Math.sqrt(energy(a)/a.length);
+  for(const [f,rumble,db] of [[220,25,-2],[220,25,4],[330,40,-2],[330,40,4],[440,45,4]]){
+    const tone=Float32Array.from({length:sr},(_,i)=>{let x=0;for(let k=1;k<=16;k++)x+=Math.sin(2*Math.PI*f*k*i/sr)/k;return x;}),toneRms=rms(tone);
+    for(let phase=0;phase<8;phase++){
+      const low=Float32Array.from({length:sr},(_,i)=>Math.sin(2*Math.PI*rumble*i/sr+phase*Math.PI/4)),lowRms=rms(low),scaledTone=Float32Array.from(tone,x=>.2*x/toneRms),scaledLow=Float32Array.from(low,x=>.2*10**(db/20)*x/lowRms),signal=Float32Array.from(scaledTone,(x,i)=>x+scaledLow[i]),before=signal.slice();
+      assert.ok(Math.abs(20*Math.log10(rms(scaledLow)/rms(scaledTone))-db)<1e-5);
+      for(const start of starts){const p=analyzeFrame(signal,sr,start);assert.ok(Math.abs(p.f0/f-1)<.01,`${f}+${rumble}, RMS ${db}dB, phase ${phase}, frame ${start}: ${p.f0}`);}
+      assert.deepEqual(signal,before);
+    }
+  }
+});
+await test('Clean 62–3000 Hz sine and saw pitches survive the rumble cutoff across phases and frame positions',()=>{
+  for(const harmonics of [1,16])for(const f of [62,65,82.4,110,220,330,440,880,2093,3000])for(const phase of [0,.7]){
+    const signal=Float32Array.from({length:sr},(_,i)=>{let x=0;for(let k=1;k<=Math.min(harmonics,Math.floor((sr/2-1)/f));k++)x+=Math.sin(k*(2*Math.PI*f*i/sr+phase))/k;return x*.2;});
+    for(const start of [0,1024,4096,8192]){const p=analyzeFrame(signal,sr,start);assert.ok(Math.abs(p.f0/f-1)<.01,`${harmonics} partials, ${f}Hz, phase ${phase}, ${start}: ${p.f0}`);}
   }
 });
 await test('Unpitched period fallback buffers key every window length, while true period loops share their raw buffer',()=>{
