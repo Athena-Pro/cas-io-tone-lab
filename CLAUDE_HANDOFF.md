@@ -10,7 +10,7 @@ npm run build
 python serve.py
 ```
 
-There are 124 dependency-free Node checks. Test the modular app at localhost and the standalone app at /dist/index.html. CI runs the tests/build and verifies the committed standalone output matches source.
+There are 130 dependency-free Node checks. Test the modular app at localhost and the standalone app at /dist/index.html. CI runs the tests/build and verifies the committed standalone output matches source.
 
 ## Follow-up review addressed in v13
 
@@ -48,3 +48,9 @@ Read the corrected coverage statement in REVIEW-FIXES.md. The old 40 Hz test did
 Fractional division values are canonical and restore into real select options. take-store.js schema v2 reads only headers for the library and rename, with audio in a separate store. V1 migration is atomic; delete keeps one persistent undo until the next delete. Six isolated native browser storage checks are available at `/tests/storage.html`. Grid actions await an in-page confirmation when the synth patch has unsaved edits; cancellation happens before replacing the take or controls.
 
 The native dense-chord check also exported a retrospective capture of live dry output. Its 0.5-second source contained 25 pulse packets with every interior gap exactly 20 ms. The corresponding offline 12-step score admitted all 96 grains and skipped none. The current browser data was left stopped after the check.
+
+## V15: score undo and loud mains hum
+
+`grid-history.js` retains one RAM checkpoint with immutable audio/feature references and cloned score/control data. The score Undo button recovers all static generators, Keep last 32, Clear, Delete step and successful source/take replacement. Take loading creates one checkpoint before source mutation, never a second checkpoint for its temporary original-order score. Exact old source/rate/frame IDs, recorded intervals, voices/rests, selection and grid settings return without reanalysis. Only take-load undo reapplies the captured synth configuration; it honors the existing dirty-patch guard. Canceled/invalid imports and canceled undo preserve the slot. Recovery stops transport/path writing. The separate persistent library-delete undo is unchanged. Six new tests include a byte-identical WAV after recovery.
+
+Mains hum near equal level is documented as competing periodic content. Reviewer-reported 50/60 Hz sweeps were correct at −20/−10 dB; loud conditions could lose pitch or read an octave low. This revision does not change the pitch detector. Read the exact reported boundary in GRID-RECORDINGS.md rather than treating the sub-range-rumble tests as coverage for loud mains hum.

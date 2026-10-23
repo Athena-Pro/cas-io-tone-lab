@@ -18,7 +18,7 @@ The external review covered `harmonic-grid.js` and `palette.js`; the sharing rep
 | Crowded grid / inaccessible clustered frames | Default 8×8 pools, optional 12×12/16×16/all-frame layouts, and explicit previous/select/next controls for every member | Membership, unique-frame preservation and browser selection checks |
 | Old caption / incomplete export metadata | Describe chords, rests and captured timing; export source duration, sample count and grid capacity | Browser export and source review |
 
-`npm test` runs 124 checks. `npm run build` rebuilds both self-contained HTML files. Audio stays local. The original v12 score JSON omitted audio; v13 portable take JSON embeds its source so it can restore and render independently.
+`npm test` runs 130 checks. `npm run build` rebuilds both self-contained HTML files. Audio stays local. The original v12 score JSON omitted audio; v13 portable take JSON embeds its source so it can restore and render independently.
 
 Remaining boundaries: the 2048-sample analysis is approximate for polyphonic/noisy/low-pitched signals; residual energy includes window leakage. Rank-based PCA preserves neighborhood grouping rather than exact projected distances. Changing recordings may still have loop-seam artifacts. Rate transposition is not time stretching. Take import and eight-partial harmonic preset generation were added in v13; spectral morphing remains unimplemented. Browser measurements do not establish firmware capacity.
 
@@ -45,3 +45,14 @@ Seventeen new checks pass alongside the earlier 99. A browser-exported eight-ste
 A native dense-chord check captured 0.5 seconds of live dry output: 25 pulse packets, every interior gap exactly 20 ms. Its 12-step offline counterpart admitted 96/96 grains with zero omissions. This directly exercises the former lookahead-count failure.
 
 The complete Node suite has 124 checks. Six additional native IndexedDB checks pass through tests/storage.html. See GRID-RECORDINGS.md for the current controls and persistence/render contract.
+
+## V15: score recovery and mains-hum boundary
+
+- Undo score retains one previous score with exact timing, chords/rests, step parameters, grid controls, selection and the matching source/analysis. It covers the four static generators, Keep last 32 ticks, Clear steps, Delete step and successful source/take loading. A take-load checkpoint precedes replacement; it is not overwritten by the temporary original-order score made during analysis. Take-load undo also recovers the earlier synth configuration and honors the unsaved-edit guard. Canceled loads/undo and invalid imports keep the existing checkpoint. Audio/features are retained by reference; mutable score/control data are copied. Recovery stops playback and path writing. The slot is RAM-only and separate from persistent library-delete undo.
+- Six score-history regressions cover deep score/control isolation, the single-slot lifecycle, source retention without audio duplication, frame/member identity across sources/rates, byte-identical audio rendering after recovery and configuration-restoration intent. The complete Node suite has 130 checks.
+
+## Known pitch limit: mains hum
+
+The pitch estimate is monophonic. Mains hum near the target tone's level can compete as a second periodic source; the 50 Hz analysis filter does not guarantee rejection of 50/60 Hz interference. The external review swept 50/60 Hz hum under 110–440 Hz saws, with 32 phase/frame-position combinations per condition: every case at −20 and −10 dB hum was correct; 60 Hz at −2 dB lost the intended pitch; 50 Hz at +4 dB under 440 Hz produced octave-low estimates in 13/32 cases. These are reviewer-reported results, separate from the repository's normalized sub-range-rumble regressions. Loud-hum failure remains a documented limit; this revision leaves the detector unchanged.
+
+Browser QA recorded a three-step path with unequal intervals and edited gain/length/transpose. Exported JSON after undo of each generator, Clear, Delete step, Keep last 32 and stored-take loading matched the pre-action export exactly. A 44.1 kHz short take replaced the six-second 48 kHz source; undo recovered the full original PCM, selected pooled member, three steps, settings and synth configuration. Canceling the dirty-patch prompt on both load and undo, and importing an invalid-frame take, retained the existing checkpoint. Ordinary generator undo preserved subsequent synth edits. The recovered native WAV (0.67142 seconds, 64500 bytes) matched a fresh render from exported JSON byte for byte. No browser warning/error logs or 320-pixel horizontal overflow were observed. The module was left stopped with writing disarmed.

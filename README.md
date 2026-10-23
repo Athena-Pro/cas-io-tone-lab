@@ -31,10 +31,11 @@ The portable build is [dist/CAS-I-O-TONE.html](dist/CAS-I-O-TONE.html); download
 | `grid-recording.js` | Validated portable takes, harmonic patch generation and offline score audio |
 | `take-store.js` | Separate IndexedDB summary/audio stores, migration, rename and reversible deletion |
 | `grid-timing.js` | Preserved recorded timing, explicit clock modes and path finalization |
+| `grid-history.js` | One-level score recovery with matching source, timing and controls |
 | `palette.js` | Grid/member controls, source loading, native grain scheduling and pattern capture |
 | `index.html`, `style.css` | Instrument and responsive UI |
 | `build.mjs` | Inline bundler and packaged-script syntax/source checks |
-| `tests/` | 124 dependency-free Node checks, including generated worklet parity and review regressions |
+| `tests/` | 130 dependency-free Node checks, including generated worklet parity and review regressions |
 
 ## Palette workflow
 
@@ -52,6 +53,12 @@ Automatic players: serpentine scan, row sweep, column sweep, random walk, knight
 
 ## Review status
 
-Read [REVIEW-FIXES.md](REVIEW-FIXES.md) for the external review response and [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md) for the next review entry point. `npm test` currently passes 124 checks. The browser was checked on localhost for pooled members, layout coverage, sparse keyboard navigation, high pitch, metadata rejection, held loops and automation. V14 covers an RMS-normalized rumble phase/frame sweep, clean low tones, canonical fractional divisions, header-only storage, rename/delete/undo, preserved timing and shared live/render grain admission. The follow-up also covers headerless WebM metadata, take persistence/import, silent selection replay, harmonic preset spectra and downloaded grid WAV parity. Browser timing/RAM are not hardware capacity measurements.
+Read [REVIEW-FIXES.md](REVIEW-FIXES.md) for the external review response and [CLAUDE_HANDOFF.md](CLAUDE_HANDOFF.md) for the next review entry point. `npm test` currently passes 130 checks. The browser was checked on localhost for pooled members, layout coverage, sparse keyboard navigation, high pitch, metadata rejection, held loops and automation. V14 covers an RMS-normalized rumble phase/frame sweep, clean low tones, canonical fractional divisions, header-only storage, rename/delete/undo, preserved timing and shared live/render grain admission. The follow-up also covers headerless WebM metadata, take persistence/import, silent selection replay, harmonic preset spectra and downloaded grid WAV parity. Browser timing/RAM are not hardware capacity measurements.
 
 V14 adds a 50 Hz pitch-only cutoff with explicit RMS-level tests, canonical quarter/half division restoration, separate take summaries/audio stores with one-time migration, rename and delete/undo, retained score intervals and an in-page prompt before grid actions replace unsaved synth edits. Live and WAV playback share the same audible-interval grain allocator. Run the six native storage checks at `/tests/storage.html`. See REVIEW-FIXES.md for the corrected v13 coverage statement.
+
+**Undo score** recovers one pattern replacement, clear, step deletion or source/take load with the matching old audio, timing, controls and selection. The recovery slot lasts only in RAM; Store/export keeps takes across reloads. See [GRID-RECORDINGS.md](GRID-RECORDINGS.md).
+
+Mains hum near the tone's level can compete as a second note and cause lost or octave-low pitch estimates. We document this monophonic-analysis limit in [GRID-RECORDINGS.md](GRID-RECORDINGS.md); the detector is unchanged in v15.
+
+V15 adds one-level score undo across generated patterns, Keep last 32, clear, step deletion and successful source/take loading. Source/take recovery includes the old source and exact timed score; take-load recovery also restores its prior synth configuration through the existing unsaved-edit guard. Loud mains hum remains a documented pitch-analysis limit, without changing the detector.
