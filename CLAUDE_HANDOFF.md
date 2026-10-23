@@ -1,12 +1,18 @@
 # Claude review handoff
 
-## Current state: v16
+## Current state: v17
 
-The standalone CAS lab plays two trig carriers, six operators, nested amplitude rules, shared effects and retrospective recall. The harmonic palette analyzes local audio into a fixed source-frame grid, supports eight seeded players, and stores/imports/renders timed takes with exact frame/member selection. Grid-score undo is one level in RAM; deleted-library-take undo is persistent. Dirty synth edits have an in-page replacement guard.
+V17 adds golden PCM hashes for deterministic renders, Kuramoto and standard-map grid players with a shared COUPLING / KICK K control, harmonic/just/hexany ratio-scale quantization rooted at the anchor cell, and waveset repeat/drop cell playback. Take v3 settings gain optional waveset and coupling fields; older takes keep their behavior. The suite has 160 checks. An intended DSP change must refresh `tests/fixtures/golden-renders.json` with `npm run golden:update`.
 
-High-rate feature windows now grow independently of the saved/playback grid. 88.2/96 kHz uses 4096 samples; 192 kHz uses 8192. Frame IDs remain i, starts remain i*1024, and Frame grains remain 2048 source samples. Both pitch and harmonic analysis use the larger context; near edges they prefer a complete real window, reflecting when the source is shorter. Existing 44.1/48 kHz feature results are preserved. Nine new regressions bring the Node suite to 139.
+Check next for v17: perceptual review of waveset grit on real recordings (complex tones, noisy sources); Kuramoto density at high stride with the 32-grain limit; golden hashes on arm64 hosts (expected to use the fingerprint fallback). HYBRIDIZATION.md assesses the remaining external proposals.
 
-Known limits: monophonic f0 can fail with near-equal-level mains hum, polyphony, transients or too few real periods. Pitch search is approximately 60–min(4000, sampleRate/8) Hz. High-rate analysis costs more and Frame grains are shorter in time (21.33 ms at 96 kHz). Corrected f0 can change Period loops and feature layouts, but saved frame IDs keep their source locations. WAV uses fresh effects histories and linear offline resampling; take configuration is a snapshot, not knob automation. No firmware/device path is included.
+## v16 notes
+
+The standalone CAS lab plays two trig carriers, six operators, nested amplitude rules, shared effects and retrospective recall. The harmonic palette analyzes local audio into a fixed source-frame grid, supports ten seeded players, and stores/imports/renders timed takes with exact frame/member selection. Grid-score undo is one level in RAM; deleted-library-take undo is persistent. Dirty synth edits have an in-page replacement guard.
+
+High-rate feature windows now grow independently of the saved/playback grid. 88.2/96 kHz uses 4096 samples; 192 kHz uses 8192. Frame IDs remain i, starts remain i*1024, and Frame grains remain 2048 source samples. Both pitch and harmonic analysis use the larger context; near edges they prefer a complete real window, reflecting when the source is shorter. Existing 44.1/48 kHz feature results are preserved. Nine regressions brought the Node suite to 139 at v16.
+
+Known limits (still current): monophonic f0 can fail with near-equal-level mains hum, polyphony, transients or too few real periods. Pitch search is approximately 60–min(4000, sampleRate/8) Hz. High-rate analysis costs more and Frame grains are shorter in time (21.33 ms at 96 kHz). Corrected f0 can change Period loops and feature layouts, but saved frame IDs keep their source locations. WAV uses fresh effects histories and linear offline resampling; take configuration is a snapshot, not knob automation. No firmware/device path is included.
 
 Check next: high-rate files with attacks and short context; old high-rate take selection/audio compatibility; screen-reader behavior; browser codec/quota failures; and native/offline interpolation differences. The new [HYBRIDIZATION.md](HYBRIDIZATION.md) ranks table/grain blending and choice memory first, with integration points, controls, memory arithmetic and acceptance criteria. Its proposed modes, pitch continuity and hum notches are not implemented features.
 
@@ -33,4 +39,4 @@ Do not change the source grid to fix analysis. Add extensions to the shared engi
 
 ## Review history
 
-V12 corrected mapping, loops, grains, sparse navigation, metadata probing and accessibility. V13 added portable source-backed takes, harmonic presets and rendering. V14 corrected RMS-normalized rumble coverage, fractional division restore, summary-only storage, timing preservation and audible grain admission. V15 added score recovery and documented loud mains hum. V16 corrects high-rate feature analysis and expands the playing/research/hybridization documentation. Full changes and historical measurements are in [REVIEW-FIXES.md](REVIEW-FIXES.md).
+V12 corrected mapping, loops, grains, sparse navigation, metadata probing and accessibility. V13 added portable source-backed takes, harmonic presets and rendering. V14 corrected RMS-normalized rumble coverage, fractional division restore, summary-only storage, timing preservation and audible grain admission. V15 added score recovery and documented loud mains hum. V16 corrects high-rate feature analysis and expands the playing/research/hybridization documentation. V17 adds golden render hashes, Kuramoto and standard-map players, ratio scales and waveset cells. Full changes and historical measurements are in [REVIEW-FIXES.md](REVIEW-FIXES.md).
