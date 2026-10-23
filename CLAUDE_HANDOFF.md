@@ -1,6 +1,10 @@
 # Claude review handoff
 
-## Current state: v18
+## Current state: v19
+
+V19 separates demo loading from audition. All seven effect cards now have explicit Load demo and Try sound controls; the algorithm and buffer sections follow the same split. Try only plays the current patch and preserves editor focus, expanded loop controls and unsaved edits. No DSP or persistent format changed. All 179 checks and 21 golden renders still pass.
+
+## v18 notes
 
 V18 adds choice memory to all ten grid players (REPEAT, MEMORY LENGTH, Lock, Clear; REPEAT 0 is unchanged behavior) and harmonic scan: heard cells retarget a 16-harmonic table that replaces the synth's S carrier, crossfaded over MOTION, with BLEND weighing keyed voices against grains. Both are in take settings with backward-compatible defaults. The suite has 179 checks and 21 golden renders.
 

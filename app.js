@@ -247,7 +247,8 @@ function buildRack(){
     const footer=document.createElement('div');footer.className='element-footer';
     if(key==='shaper'||key==='mod'||buffered){const label=document.createElement('label');label.textContent=buffered?'LOOP ':'MODE ';const select=document.createElement('select');select.id=`mode-${key}`;select.setAttribute('aria-label',`${meta.title.toLowerCase()} mode`);const values=buffered?CAS.LOOP_MODES:key==='shaper'?['sine','cosine','cheby']:['ring','tremolo'];values.forEach(v=>select.append(option(v,v.toUpperCase().replace('-',' → '),false)));select.addEventListener('change',()=>{fxBank=fxKeys.indexOf(key);page='fx';setEffectMode(key,select.value);});label.append(select);footer.append(label);}
     if(buffered){const b=document.createElement('button');b.id=`details-${key}`;b.textContent='Loop controls';b.addEventListener('click',()=>{const active=page==='fx'&&fxKeys[fxBank]===key&&detail;fxBank=fxKeys.indexOf(key);page='fx';detail=!active;renderPanel();});footer.append(b);}
-    const demo=document.createElement('button');demo.textContent='Try sound';demo.setAttribute('aria-label',`Try ${meta.title.toLowerCase()} sound`);demo.addEventListener('click',()=>{loadPatch(presets[meta.demo]);focusEffect(key);$('#audition').click();});footer.append(demo);card.append(footer);
+    const load=document.createElement('button');load.textContent='Load demo';load.setAttribute('aria-label',`Load ${meta.title.toLowerCase()} demo`);load.title='Replace the current patch with this demonstration preset';load.addEventListener('click',()=>{loadPatch(presets[meta.demo]);focusEffect(key);});footer.append(load);
+    const demo=document.createElement('button');demo.textContent='Try sound';demo.setAttribute('aria-label',`Try ${meta.title.toLowerCase()} sound`);demo.title='Play the current patch without changing its controls';demo.addEventListener('click',()=>{$('#audition').click();});footer.append(demo);card.append(footer);
   }
 }
 function renderRack(){
@@ -278,7 +279,8 @@ function renderBuffers(){
 }
 $('#buffer-route').addEventListener('change',e=>{patch.fx.spaceRoute=e.target.value;updatePatch();});
 $('#clear-buffers').addEventListener('click',()=>{send({type:'clearBuffers'});notify('Echo and reverb memories cleared. Held voices keep playing.');});
-$('#buffer-demo').addEventListener('click',()=>{loadPatch(presets[28]);focusEffect('delay');$('#audition').click();});
+$('#buffer-load-demo').addEventListener('click',()=>{loadPatch(presets[28]);focusEffect('delay');});
+$('#buffer-demo').addEventListener('click',()=>{$('#audition').click();});
 for(const id of ['plan-rate','plan-format','plan-channels','plan-instances','plan-time'])$(`#${id}`).addEventListener('input',renderBuffers);
 function recallFields(){const r=patch.recall,set=key=>v=>{r[key]=v;page='mem';updatePatch();};return [field('K1 / BEATS BACK',[1,2,4].indexOf(r.back),0,2,1,v=>set('back')([1,2,4][v]),v=>`${[1,2,4][v]} BEATS`),field('K2 / SLICE LENGTH',[.25,.5,1].indexOf(r.length),0,2,1,v=>set('length')([.25,.5,1][v]),v=>`${[.25,.5,1][v]} BEAT`),field('K3 / RECALL RETURN',r.mix,0,1,.01,set('mix'),v=>`${Math.round(v*100)}%`),field('K4 / RISING EDGES',r.divisor,1,4096,1,set('divisor'),v=>`${v} ↑`)];}
 function buildMemory(){
@@ -338,7 +340,8 @@ function buildStack(){
   $('#stack-base').addEventListener('change',e=>{patch.combine=e.target.value;updatePatch();});
   $('#stack-enable').addEventListener('click',()=>{patch.stack.enabled=!patch.stack.enabled;updatePatch();});
   $('#stack-clear').addEventListener('click',()=>{patch.stack=CAS.initStack();stackIndex=0;updatePatch();});
-  $('#stack-demo').addEventListener('click',()=>{const index=CAS.algorithmIndex(patch);if(index>=6&&index<CAS.ALGORITHMS.length)loadPatch(presets[20+index-6]);stackIndex=0;setPage('alg');$('#audition').click();});
+  $('#stack-load-demo').addEventListener('click',()=>{const index=CAS.algorithmIndex(patch);if(index>=6&&index<CAS.ALGORITHMS.length){loadPatch(presets[20+index-6]);stackIndex=0;setPage('alg');}else notify('Choose a compound algorithm to load its demonstration preset.');});
+  $('#stack-demo').addEventListener('click',()=>{$('#audition').click();});
   for(let i=0;i<4;i++){
     const card=document.createElement('article');card.className='stack-stage';card.dataset.stage=i;
     const head=document.createElement('div');head.className='stage-heading';

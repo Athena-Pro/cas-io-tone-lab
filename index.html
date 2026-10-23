@@ -9,7 +9,7 @@
 <body>
 <main>
   <header class="masthead">
-    <div><span class="eyebrow">QUADRATURE SYNTHESIS / RESEARCH INSTRUMENT</span><h1>CAS <span>I/O</span> TONE <small>LAB / 18</small></h1></div>
+    <div><span class="eyebrow">QUADRATURE SYNTHESIS / RESEARCH INSTRUMENT</span><h1>CAS <span>I/O</span> TONE <small>LAB / 19</small></h1></div>
     <div class="header-actions"><span id="audio-state" class="audio-state">● AUDIO ASLEEP</span><button id="wake" class="primary">Enable audio</button><button id="audition">Play chord</button><button id="panic" class="danger">Panic <kbd>Esc</kbd></button></div>
   </header>
   <section class="instrument" aria-label="Virtual CAS hardware panel">
@@ -64,7 +64,7 @@
   </section>
 
   <section class="stack-section" aria-labelledby="stack-title">
-    <div class="section-heading"><div><span class="eyebrow">NESTED ALGORITHMS / PER VOICE</span><h2 id="stack-title">One result. The next rule.</h2></div><div class="toolbar"><button id="stack-enable" aria-pressed="false">Enable stack</button><button id="stack-demo">Try algorithm sound</button><button id="stack-clear">Clear stages</button></div></div>
+    <div class="section-heading"><div><span class="eyebrow">NESTED ALGORITHMS / PER VOICE</span><h2 id="stack-title">One result. The next rule.</h2></div><div class="toolbar"><button id="stack-enable" aria-pressed="false">Enable stack</button><button id="stack-load-demo" title="Replace the current patch with the selected compound algorithm's demonstration preset">Load algorithm demo</button><button id="stack-demo" title="Play the current patch without changing its controls">Try algorithm sound</button><button id="stack-clear">Clear stages</button></div></div>
     <div class="stack-routing"><label>ALGORITHM <select id="stack-algorithm" aria-label="Stack algorithm"></select></label><label>BASE RULE <select id="stack-base" aria-label="Stack base rule"></select></label><span id="stack-status">STACK BYPASSED</span></div>
     <p class="stack-path" id="stack-path">S + C → OUTPUT</p>
     <div class="stack-rack" id="stack-rack"></div>
@@ -76,11 +76,11 @@
     <div class="section-heading"><div><span class="eyebrow">TRIGONOMETRIC SOUND ELEMENTS</span><h2 id="elements-title">Shape phase. Transform sound.</h2></div><div class="toolbar"><span id="fx-status">0 / 6 EFFECTS ON</span><button id="fx-bypass" aria-pressed="false">Bypass effects</button></div></div>
     <p class="signal-chain">PHASE WARP <span>→</span> VOICES + OPERATORS + RULE STACK <span>→</span> TRIG SHAPER <span>→</span> RING / TREM <span>→</span> SSB SHIFT <span>→</span> ALLPASS ORBIT</p>
     <div class="element-rack" id="element-rack"></div>
-    <p class="table-note">Click an element title to put it on the main panel. SELECT chooses an FX bank; EDIT enables/bypasses it. ALGORITHM selects shaper, modulation or buffer-loop mode. Try sound loads a demonstration preset and plays a chord. Effects bypass includes the buffers below and clears their tails; carrier phase warping has its own bypass.</p>
+    <p class="table-note">Click an element title to put it on the main panel. SELECT chooses an FX bank; EDIT enables/bypasses it. ALGORITHM selects shaper, modulation or buffer-loop mode. Load demo replaces the current patch. Try sound plays your current settings and keeps every knob, mode and bypass as edited. Effects bypass includes the buffers below and clears their tails; carrier phase warping has its own bypass.</p>
   </section>
 
   <section class="buffer-section" aria-labelledby="buffer-title">
-    <div class="section-heading"><div><span class="eyebrow">BUFFER LAB / SHARED SENDS & RETURNS</span><h2 id="buffer-title">Give the trig stack a memory.</h2></div><div class="toolbar"><button id="buffer-demo">Try cascade sound</button><button id="clear-buffers">Clear buffer tails</button></div></div>
+    <div class="section-heading"><div><span class="eyebrow">BUFFER LAB / SHARED SENDS & RETURNS</span><h2 id="buffer-title">Give the trig stack a memory.</h2></div><div class="toolbar"><button id="buffer-load-demo" title="Replace the current patch with the cascade demonstration preset">Load cascade demo</button><button id="buffer-demo" title="Play the current patch without changing its controls">Try cascade sound</button><button id="clear-buffers">Clear buffer tails</button></div></div>
     <div class="buffer-routing"><label>ROUTING <select id="buffer-route" aria-label="Buffer routing"><option value="parallel">Parallel echo + room</option><option value="serial">Echo → room</option></select></label><span id="buffer-levels">TAP RMS · ECHO 0.0000 / ROOM 0.0000</span></div>
     <p class="signal-chain" id="buffer-path">STACK → TRIG INSERTS → PARALLEL ECHO / ROOM RETURNS → OUTPUT</p>
     <div class="buffer-rack" id="buffer-rack"></div>

@@ -1,4 +1,4 @@
-# CAS lab validation — v18
+# CAS lab validation - v19
 
 This is a software research instrument. No physical device was accessed or flashed, and browser timing does not establish firmware headroom.
 
@@ -11,6 +11,10 @@ python serve.py
 ```
 
 There are **179 dependency-free Node checks**: 13 synthesis, 11 trig effects, 11 nested algorithms, 13 buffers, 5 source monitoring, 11 crossing/recall, 11 harmonic palette, 12 grid autoplay, 12 review regressions, 18 grid recording, 7 timing/grain admission, 6 score recovery, 9 sample-rate analysis, 10 grid dynamics/ratio scales, 8 wavesets, 9 choice memory, 10 harmonic scan and 3 golden renders. The build embeds all source/styles, checks packaged-script equality and module syntax, and writes two identical standalone HTML files. CI repeats tests/build and checks committed dist consistency.
+
+## V19 controls
+
+All nine Try controls were clicked twice with edited effect knobs, modes, custom stack stages and advanced buffer settings. Form values, effect toggles, dirty state and expanded loop panels stayed identical; patch/tempo/note-loop exports were identical before and after the 18 clicks. Separate effect, algorithm and cascade Load actions selected their demonstration presets. At 320 px the new footers wrap without horizontal overflow. Browser console: no warnings or errors. The unchanged 179-check Node suite passes, including all 21 golden PCM renders.
 
 ## V18 additions
 
