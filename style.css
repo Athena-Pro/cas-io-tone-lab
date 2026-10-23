@@ -32,3 +32,4 @@
 @media(max-width:500px){.palette-takes{padding:16px}.take-controls{grid-template-columns:minmax(0,1fr)}.take-controls input,.take-controls select{font-size:10px}}
 
 #grid-replace-dialog{max-width:min(480px,calc(100% - 32px));border:1px solid #77ad99;border-radius:8px;padding:24px;background:#192b24;color:#d3e8dd}#grid-replace-dialog h2{font-size:20px;margin:0 0 12px}#grid-replace-dialog p{line-height:1.7}#grid-replace-dialog::backdrop{background:#0009}
+.palette-scan{margin-top:18px;padding-top:14px;border-top:1px solid #33503f}.palette-scan-controls{margin:12px 0}

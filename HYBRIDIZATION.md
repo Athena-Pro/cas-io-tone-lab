@@ -1,6 +1,6 @@
 # Hybrid synthesis directions for CAS I/O TONE
 
-The strongest next sound-engine experiment is a **grid-scanned harmonic table blended with a short source grain**: retain an attack's texture, then sustain and modulate its tonal body with CAS. Add **choice memory** to the grid players as a smaller control project. These are design recommendations. V16 implemented the sample-rate analysis correction; v17 adds waveset repeat/drop on palette cells (part of section 4), two dynamical grid players (Kuramoto and standard map) and ratio-scale quantization. Everything else below remains a proposal.
+The strongest next sound-engine experiment is a **grid-scanned harmonic table blended with a short source grain**: retain an attack's texture, then sustain and modulate its tonal body with CAS. Add **choice memory** to the grid players as a smaller control project. These are design recommendations. V16 implemented the sample-rate analysis correction; v17 added waveset repeat/drop on palette cells (part of section 4), two dynamical grid players (Kuramoto and standard map) and ratio-scale quantization. V18 implements the first-ranked pair: the harmonic table with a grain/key blend (section 1, as described in its status note) and choice memory (section 2). Everything else below remains a proposal.
 
 ## Playable combinations already available
 
@@ -43,6 +43,8 @@ Suggested controls: **BLEND, POSITION, MOTION, TEXTURE**; SELECT chooses the tab
 
 Acceptance: m=0 reproduces the existing grain path; m=1 produces a stable keyed tone; cell changes preserve phase continuity; moving position cannot change score IDs; upper-note alias tests and live/offline null comparisons pass. Store table/trajectory assets in a versioned take format, with defaults that preserve older takes.
 
+**Status (v18):** implemented as an S-carrier table rather than a separate table voice. Each heard cell's 16 measured magnitudes (chords averaged) become `sum(k) a_k sin(k*theta)` in place of the S carrier's sine, inside the shared engine, so B, warp, PM, feedback and the rule stack modulate the sampled timbre. Targets crossfade linearly over MOTION with continuous voice phases; harmonics above 0.45× the output rate are skipped instead of using mip levels. BLEND is m (keys) against 1 − m (grains). Not implemented: an explicit POSITION/TEXTURE pair, attack-grain envelopes, source-RMS loudness restoration and hardware-panel SELECT/EDIT mappings.
+
 ## 2. Remember choices, then vary them
 
 Add a 1–16-event memory after the automator makes a choice. **REPEAT** controls the probability of replaying a stored event instead of generating a new one; **LOCK** freezes the memory, and a separate command clears/reseeds it. Store complete heard events: frame IDs, rests, chord voices, normalization, transpose and timing. Remap coordinates from IDs after layout changes. Keep memory separate from the editable score until Keep last 32 is pressed.
@@ -50,6 +52,8 @@ Add a 1–16-event memory after the automator makes a choice. **REPEAT** control
 [Mutable Instruments Marbles](https://pichenettes.github.io/mutable-instruments-documentation/modules/marbles/manual/#deja-vu-section) is a hardware precedent for recycling random decisions with loop-length control. The proposal here applies that principle to CAS grid events; it is not an emulation of Marbles. The existing HITS PER 16 gate already distributes hits over a fixed cycle, so a second rhythm system has less immediate value than memory and lock.
 
 Suggested controls: **REPEAT, MEMORY LENGTH, STRIDE, DENSITY**; EDIT locks choices, SCL+EDIT reseeds. Use the existing seeded PRNG for new/replay decisions. Test probability endpoints, lock across rests/chords, source replacement clearing incompatible IDs, tempo changes, score undo and portable round-trips. At probability 1 with lock, repeated output must be exactly reproducible.
+
+**Status (v18):** REPEAT, MEMORY LENGTH, Lock and Clear are implemented in `grid-auto.js` with a separate seeded replay stream, so REPEAT 0 leaves every player unchanged. The player advances every tick and replays overlay it; HITS PER 16 still gates replays. Memory is not persisted in takes. The hardware-panel EDIT/SCL+EDIT mapping is not implemented.
 
 ## 3. A path becomes a changing instrument
 
@@ -79,7 +83,7 @@ Today, external grains enter after the per-voice operator/stack calculations. Th
 
 A later external proposal suggested ten extensions. Three were implemented in v17 (waveset repeat/drop on cells, Kuramoto and standard-map players, ratio-scale quantization), along with golden render hashes. Notes on the rest:
 
-- **Interpolating operator ratios between cells.** The eight strongest harmonics differ from cell to cell, so interpolating ratios glides partials through inharmonic values and swaps operator identities. Section 1's fixed-harmonic table (amplitude-only interpolation, continuous phase) avoids this. The engine also reads patch values per sample without smoothing, so control-rate scanning would need smoothing to avoid zipper noise.
+- **Interpolating operator ratios between cells.** (V18 takes the fixed-harmonic route below.) The eight strongest harmonics differ from cell to cell, so interpolating ratios glides partials through inharmonic values and swaps operator identities. Section 1's fixed-harmonic table (amplitude-only interpolation, continuous phase) avoids this. The engine also reads patch values per sample without smoothing, so control-rate scanning would need smoothing to avoid zipper noise.
 - **Stack rules inside a pitch-tracked delay loop.** Plausible as a post-mix resonator tuned to the last note. Grains enter after the per-voice calculation, so a per-voice string excited by grains needs the causal tap described in section 5. Chebyshev or trig rules in feedback need an explicit loop-gain bound.
 - **Noise as phase modulation of the carriers.** PM by noise spreads and detunes the carriers' partials rather than adding a noise floor; section 3's filtered additive noise is closer to sinusoid-plus-noise models. The current `inharmonicity` value includes window leakage and is not a noise gain.
 - **Closed-loop descriptor steering.** The shared dry monitor contains grains, so following it chases the palette's own output. It needs the isolated synth-only tap described under the mosaic follower first.

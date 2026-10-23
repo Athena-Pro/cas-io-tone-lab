@@ -1,4 +1,4 @@
-# CAS lab validation — v17
+# CAS lab validation — v18
 
 This is a software research instrument. No physical device was accessed or flashed, and browser timing does not establish firmware headroom.
 
@@ -10,7 +10,14 @@ npm run build
 python serve.py
 ```
 
-There are **160 dependency-free Node checks**: 13 synthesis, 11 trig effects, 11 nested algorithms, 13 buffers, 5 source monitoring, 11 crossing/recall, 11 harmonic palette, 12 grid autoplay, 12 review regressions, 18 grid recording, 7 timing/grain admission, 6 score recovery, 9 sample-rate analysis, 10 grid dynamics/ratio scales, 8 wavesets and 3 golden renders. The build embeds all source/styles, checks packaged-script equality and module syntax, and writes two identical standalone HTML files. CI repeats tests/build and checks committed dist consistency.
+There are **179 dependency-free Node checks**: 13 synthesis, 11 trig effects, 11 nested algorithms, 13 buffers, 5 source monitoring, 11 crossing/recall, 11 harmonic palette, 12 grid autoplay, 12 review regressions, 18 grid recording, 7 timing/grain admission, 6 score recovery, 9 sample-rate analysis, 10 grid dynamics/ratio scales, 8 wavesets, 9 choice memory, 10 harmonic scan and 3 golden renders. The build embeds all source/styles, checks packaged-script equality and module syntax, and writes two identical standalone HTML files. CI repeats tests/build and checks committed dist consistency.
+
+## V18 additions
+
+- **Choice memory.** REPEAT 0 reproduces every player's legacy sequence, including seeded draws. REPEAT 1 loops the first MEMORY events exactly for walk, Life chords, Kuramoto rests and similarity walks at lengths 1, 5 and 16, across pooled members. Lock freezes memory while fresh variations continue, and unlocking resumes overwriting. REPEAT 25/50/75% replays within 3 percentage points of the target over 4000 ticks. Length, stride and density changes keep memory, density 0 silences replays, Clear empties memory, anchor steering preserves the loop, seeds reproduce replay choices, and takes round-trip the settings.
+- **Harmonic scan.** The sine recurrence matches the direct harmonic sum within 1e-12 for every harmonic count. A held key at BLEND 1 reproduces a scanned vector's relative harmonic magnitudes within 0.2% of the fundamental. A key whose 16th harmonic lies above the output Nyquist has no aliased energy (below 1e-9 of the fundamental's power). A retarget is exactly halfway at MOTION/2 and complete at MOTION, with no sample step above 1.05× the larger steady-state step. BLEND 0 leaves the grain path bit-identical to an engine without scan, intermediate BLEND is exactly m × keys + (1 − m) × grains through the linear chain, and disabled scan renders bit-identically. The generated AudioWorklet source applies configuration and a timed retarget identically to the offline engine (within Float32 precision). Grid WAVs with scan render grains at 1 − BLEND. A 21st golden render covers a PM-modulated scan with two retargets; the other 20 hashes are unchanged.
+
+Browser QA on localhost with the generated demo: Scan pushed its configuration to the worklet on connect and on toggle, then retargeted to the selected cell (frame 69, 155.6 Hz). During Lissajous autoplay it sent 15 timed retargets in 2 seconds (one per heard tick, non-decreasing times, 7 distinct tables) and none while the table was locked. Walk with REPEAT 100% and MEMORY 4 showed NEW 1–4, then REPLAY 1/4–4/4 repeating with the same cells; at 50% it produced 17 new and 14 replayed ticks; Clear memory refilled from new choices. Original order followed by Undo score restored REPEAT, MEMORY, Lock, Scan, BLEND and MOTION and re-sent the scan configuration. No page overflow at 320 or 390 pixels, and no console warnings or errors. The panel's FFT/WAVE canvas did not redraw in the preview pane during this session, with scan on or off, so the audible result of scan was verified by the Node worklet tests rather than on screen.
 
 ## V17 additions
 

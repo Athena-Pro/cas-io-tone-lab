@@ -1,6 +1,12 @@
 # Claude review handoff
 
-## Current state: v17
+## Current state: v18
+
+V18 adds choice memory to all ten grid players (REPEAT, MEMORY LENGTH, Lock, Clear; REPEAT 0 is unchanged behavior) and harmonic scan: heard cells retarget a 16-harmonic table that replaces the synth's S carrier, crossfaded over MOTION, with BLEND weighing keyed voices against grains. Both are in take settings with backward-compatible defaults. The suite has 179 checks and 21 golden renders.
+
+Check next for v18: listen to scan on real recordings across the keyboard (skipping a harmonic as a key or bend crosses its Nyquist threshold may be audible as a timbre step); a POSITION control between two locked tables; whether replayed Life/Kuramoto chords should re-evaluate the voice limit; the panel FFT/WAVE canvas, which did not redraw in the preview pane during v18 QA.
+
+## v17 notes
 
 V17 adds golden PCM hashes for deterministic renders, Kuramoto and standard-map grid players with a shared COUPLING / KICK K control, harmonic/just/hexany ratio-scale quantization rooted at the anchor cell, and waveset repeat/drop cell playback. Take v3 settings gain optional waveset and coupling fields; older takes keep their behavior. The suite has 160 checks. An intended DSP change must refresh `tests/fixtures/golden-renders.json` with `npm run golden:update`.
 
@@ -39,4 +45,4 @@ Do not change the source grid to fix analysis. Add extensions to the shared engi
 
 ## Review history
 
-V12 corrected mapping, loops, grains, sparse navigation, metadata probing and accessibility. V13 added portable source-backed takes, harmonic presets and rendering. V14 corrected RMS-normalized rumble coverage, fractional division restore, summary-only storage, timing preservation and audible grain admission. V15 added score recovery and documented loud mains hum. V16 corrects high-rate feature analysis and expands the playing/research/hybridization documentation. V17 adds golden render hashes, Kuramoto and standard-map players, ratio scales and waveset cells. Full changes and historical measurements are in [REVIEW-FIXES.md](REVIEW-FIXES.md).
+V12 corrected mapping, loops, grains, sparse navigation, metadata probing and accessibility. V13 added portable source-backed takes, harmonic presets and rendering. V14 corrected RMS-normalized rumble coverage, fractional division restore, summary-only storage, timing preservation and audible grain admission. V15 added score recovery and documented loud mains hum. V16 corrects high-rate feature analysis and expands the playing/research/hybridization documentation. V17 adds golden render hashes, Kuramoto and standard-map players, ratio scales and waveset cells. V18 adds choice memory and harmonic scan. Full changes and historical measurements are in [REVIEW-FIXES.md](REVIEW-FIXES.md).

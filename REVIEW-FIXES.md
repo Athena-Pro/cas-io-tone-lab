@@ -78,3 +78,9 @@ Separate old/new offline comparisons at 96 and 192 kHz produced byte-identical F
 - Pitch quantization adds the odd harmonic series 1–15, 5-limit just major and the 1·3·5·7 hexany, rooted at the anchor cell's f0 (median pitched f0 for unpitched anchors).
 - CELL PLAYBACK adds wavesets: rising-crossing segments repeated 1–4 times and/or every 2nd–8th dropped, then one Hann window. Live and offline share construction; duration follows the buffer.
 - Take v3 settings gain optional waveset and coupling fields with backward-compatible defaults. Twenty-one new checks bring the suite to 160. See VALIDATION.md for measurements and browser QA, and HYBRIDIZATION.md for the assessment of the remaining external proposals.
+
+## V18: choice memory and harmonic scan
+
+- Choice memory (REPEAT · DÉJÀ VU, MEMORY LENGTH 1–16, Lock, Clear) overlays remembered heard events on every grid player using a separate seeded stream; REPEAT 0 is bit-for-bit the previous behavior, and REPEAT 1 with Lock loops exactly.
+- Harmonic scan puts a 16-harmonic table, retargeted by heard grid cells, in place of the S carrier's sine in the shared engine. It uses a linear MOTION crossfade, continuous voice phases and skips harmonics above 0.45× the output rate. BLEND weighs keyed voices against grains, and the AudioWorklet applies retargets at each grain's start.
+- Take settings gain optional memory and scan fields with defaults that leave older takes unchanged. Grid WAVs scale grains by 1 − BLEND as live playback does. Nineteen new checks bring the suite to 179; a 21st golden render covers scan, and the other 20 hashes are unchanged.
