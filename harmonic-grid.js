@@ -8,11 +8,24 @@ export function fft(re, im, inverse=false) {
 const bound=(v,a,b)=>Math.max(a,Math.min(b,v));
 export const FRAME=2048,HOP=1024,PARTIALS=16;
 export const hann=(i,n)=>.5-.5*Math.cos(2*Math.PI*i/n);
+// Pitch-only 40 Hz high-pass. Forward/backward filtering with reflected padding
+// avoids a start-of-file filter transient becoming a false low fundamental.
+function pitchFrame(samples,sr,start,n){
+  const w=2*Math.PI*40/sr,c=Math.cos(w),sin=Math.sin(w),padding=Math.ceil(sr*.075),data=new Float64Array(n+2*padding),span=Math.max(1,samples.length-1);
+  for(let i=0;i<data.length;i++){const at=start+i-padding,wrapped=((at%(2*span))+2*span)%(2*span),index=wrapped<=span?wrapped:2*span-wrapped;data[i]=samples[index]||0;}
+  const filter=reverse=>{
+    const stages=[.5411961001,1.3065629649].map(q=>{const a=1+sin/(2*q);return {b0:(1+c)/2/a,b1:-(1+c)/a,b2:(1+c)/2/a,a1:-2*c/a,a2:(1-sin/(2*q))/a,x1:0,x2:0,y1:0,y2:0};});
+    stages[0].x1=stages[0].x2=data[reverse?data.length-1:0];
+    for(let j=0;j<data.length;j++){const i=reverse?data.length-1-j:j;let x=data[i];for(const f of stages){const y=f.b0*x+f.b1*f.x1+f.b2*f.x2-f.a1*f.y1-f.a2*f.y2;f.x2=f.x1;f.x1=x;f.y2=f.y1;f.y1=y;x=y;}data[i]=x;}
+  };
+  filter(false);filter(true);return data.slice(padding,padding+n);
+}
 export function analyzeFrame(samples,sr,start=0) {
   const n=FRAME,re=new Float64Array(n),im=new Float64Array(n),ar=new Float64Array(n*2),ai=new Float64Array(n*2),sums=new Float64Array(n+1);
   let mean=0;for(let i=0;i<n;i++)mean+=samples[start+i]||0;mean/=n;
-  for(let i=0;i<n;i++){const x=(samples[start+i]||0)-mean;re[i]=x*hann(i,n);ar[i]=x;sums[i+1]=sums[i]+x*x;}
-  const rms=Math.sqrt(sums[n]/n);fft(re,im);const power=Float64Array.from({length:n/2},(_,i)=>re[i]**2+im[i]**2);
+  const pitch=pitchFrame(samples,sr,start,n);let energy=0;
+  for(let i=0;i<n;i++){const x=(samples[start+i]||0)-mean;re[i]=x*hann(i,n);energy+=x*x;ar[i]=pitch[i];sums[i+1]=sums[i]+pitch[i]*pitch[i];}
+  const rms=Math.sqrt(energy/n);fft(re,im);const power=Float64Array.from({length:n/2},(_,i)=>re[i]**2+im[i]**2);
   let f0=0,confidence=0;
   if(rms>1e-5){fft(ar,ai);for(let i=0;i<ar.length;i++){ar[i]=ar[i]**2+ai[i]**2;ai[i]=0;}fft(ar,ai,true);
     const lo=Math.max(2,Math.floor(sr/Math.min(4000,sr/8))),hi=Math.min(n/2-2,Math.ceil(sr/60)),corr=new Float64Array(hi+2),peaks=[];
@@ -21,7 +34,11 @@ export function analyzeFrame(samples,sr,start=0) {
     let peak=0;const keepPeak=()=>{if(peak&&corr[peak]>=corr[peak-1]&&corr[peak]>corr[peak+1])peaks.push(peak);peak=0;};
     for(let lag=firstNegative+1;lag<=hi;lag++){if(corr[lag]>0){if(!peak||corr[lag]>corr[peak])peak=lag;}else keepPeak();}keepPeak();
     const best=peaks.reduce((m,l)=>Math.max(m,corr[l]),0),chosen=peaks.find(l=>corr[l]>=Math.max(.6,best*.92));
-    if(chosen>=lo){const a=corr[chosen-1],b=corr[chosen],c=corr[chosen+1],d=bound(.5*(a-c)/(a-2*b+c||1),-.5,.5);f0=sr/(chosen+d);confidence=bound(b,0,1);}
+    if(chosen>=lo){const a=corr[chosen-1],b=corr[chosen],c=corr[chosen+1],d=bound(.5*(a-c)/(a-2*b+c||1),-.5,.5);f0=sr/(chosen+d);
+      // A clean raw period can be more coherent than its reflected-filter edge.
+      // Rumble rejection chooses the lag; confidence can also use the raw repeat.
+      let dot=0,left=0,right=0;for(let i=0;i<n-chosen;i++){const x=(samples[start+i]||0)-mean,y=(samples[start+i+chosen]||0)-mean;dot+=x*y;left+=x*x;right+=y*y;}
+      confidence=bound(Math.max(b,dot/Math.max(1e-20,Math.sqrt(left*right))),0,1);}
   }
   const h=new Float64Array(PARTIALS);let total=0,odd=0,even=0,weighted=0,allEnergy=0,residual=0;
   const residualWidth=Math.min(1.5,.35*f0*n/sr);
@@ -66,13 +83,15 @@ export function nextOccupiedCell(map,from,dx,dy){
   const x=from%map.columns,y=Math.floor(from/map.columns);for(let a=x+dx,b=y+dy;a>=0&&a<map.columns&&b>=0&&b<map.rows;a+=dx,b+=dy)if(map.cells[b*map.columns+a]?.length)return b*map.columns+a;
   let best=from,distance=Infinity;map.cells.forEach((ids,at)=>{if(!ids.length)return;const ax=at%map.columns-x,ay=Math.floor(at/map.columns)-y,forward=ax*dx+ay*dy,across=ax*dy-ay*dx;if(forward<=0)return;const cost=forward*forward+5*across*across;if(cost<distance){distance=cost;best=at;}});return best;
 }
+export const representativeId=ids=>ids?.[Math.floor(ids.length/2)];
 export function makePattern(map,pieces,mode='original',count=32,start={x:0,y:0},random=Math.random){
   const step=id=>({...map.locations.get(id),piece:id,gain:1,length:1,transpose:0});
+  const pick=ids=>ids[Math.min(ids.length-1,Math.floor(random()*ids.length))];
   if(mode==='original')return pieces.map(p=>step(p.id));
   const available=map.cells.map((ids,i)=>ids.length?i:-1).filter(i=>i>=0);if(!available.length)return[];
-  if(mode==='row'){const row=Math.max(0,Math.min(map.rows-1,start.y));return map.cells.slice(row*map.columns,(row+1)*map.columns).filter(ids=>ids.length).map(ids=>step(ids[0]));}
+  if(mode==='row'){const row=Math.max(0,Math.min(map.rows-1,start.y));return map.cells.slice(row*map.columns,(row+1)*map.columns).filter(ids=>ids.length).map(ids=>step(pick(ids)));}
   let at=available.includes(start.y*map.columns+start.x)?start.y*map.columns+start.x:available[0];const result=[];
-  for(let i=0;i<count;i++){result.push(step(map.cells[at][0]));const x=at%map.columns,y=Math.floor(at/map.columns),moves=mode==='knight'?[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]:[[1,0],[-1,0],[0,1],[0,-1]];const choices=moves.map(([dx,dy])=>[x+dx,y+dy]).filter(([a,b])=>a>=0&&a<map.columns&&b>=0&&b<map.rows&&map.cells[b*map.columns+a].length);at=choices.length?(()=>{const [a,b]=choices[Math.floor(random()*choices.length)];return b*map.columns+a;})():available[Math.floor(random()*available.length)];}
+  for(let i=0;i<count;i++){result.push(step(pick(map.cells[at])));const x=at%map.columns,y=Math.floor(at/map.columns),moves=mode==='knight'?[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]]:[[1,0],[-1,0],[0,1],[0,-1]];const choices=moves.map(([dx,dy])=>[x+dx,y+dy]).filter(([a,b])=>a>=0&&a<map.columns&&b>=0&&b<map.rows&&map.cells[b*map.columns+a].length);at=choices.length?(()=>{const [a,b]=choices[Math.floor(random()*choices.length)];return b*map.columns+a;})():available[Math.floor(random()*available.length)];}
   return result;
 }
 export function demoSound(sr=48000){const samples=new Float32Array(sr*6);for(let i=0;i<samples.length;i++){const t=i/sr,section=Math.floor(t/.375),f=110*2**((section%8)*2/12),bright=Math.floor(section/4)%4,local=t%.375,envelope=Math.min(1,local/.012,Math.max(0,(.375-local)/.025));let value=0;for(let k=1;k<=16;k++)value+=Math.sin(2*Math.PI*f*k*t)/(k**(2.8-bright*.65));samples[i]=value*.23*envelope;}return samples;}

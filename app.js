@@ -1,6 +1,7 @@
 import { CAS, createWorkletSource } from './engine.js';
 import { fft } from './harmonic-grid.js';
 import { createHarmonicPalette } from './palette.js';
+import {takeConfiguration} from './grid-recording.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -576,6 +577,8 @@ midiButton.addEventListener('click',async()=>{if(midiAccess){if(midiInput)midiIn
 try{const saved=localStorage.getItem('cas-tone-lab-patch');if(saved)bootPatch=CAS.sanitize(JSON.parse(saved));}catch{}
 if(bootPatch)patch=bootPatch;
 buildStack();buildRack();buildMemory();renderKeyboard();renderOperators();renderSteps();showExperiment(0);renderPanel();requestAnimationFrame(draw);
-harmonicPalette=createHarmonicPalette({ensureAudio,audio:()=>({context,node}),snapshot:recallSnapshot,notify,getTempo:()=>tempo,setTempo:changeTempo});
+function gridConfiguration(){return {patch:clone(patch),tempo,navigation:{page,view,opIndex,stackIndex,fxBank,globalGroup,octave}};}
+function restoreGridConfiguration(input){const saved=takeConfiguration(input),n=saved.navigation;panic();loadPatch(saved.patch);changeTempo(saved.tempo);opIndex=n.opIndex;stackIndex=n.stackIndex;fxBank=n.fxBank;globalGroup=n.globalGroup;octave=n.octave;renderKeyboard();setView(n.view);setPage(n.page);renderOperators();renderPanel();}
+harmonicPalette=createHarmonicPalette({ensureAudio,audio:()=>({context,node}),snapshot:recallSnapshot,notify,getTempo:()=>tempo,setTempo:changeTempo,getConfiguration:gridConfiguration,applyConfiguration:restoreGridConfiguration,applyHarmonicPreset:result=>{panic();loadPatch(result.patch);setPage('home');setView('spectrum');}});
 // A small public module API supports embedding and reproducible engine/panel checks.
 window.casLab={get patch(){return clone(patch);},get scope(){return scope;},get state(){return {page,opIndex,stackIndex,recordState,recordArmed,hold,pattern:clone(pattern),activeNotes:[...activeNotes],audio:context?.state||'off',dirty};},presets:clone(presets),loadPatch,setPage,setView,noteOn,noteOff,panic,ensureAudio,spectrum,encodeWav};

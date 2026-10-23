@@ -1,6 +1,6 @@
 # Claude review handoff
 
-This is the complete CAS I/O TONE browser lab, not the parent firmware/workbench repository. All local imports are present, including the previously missing `grid-auto.js`. Start with `README.md` and `REVIEW-FIXES.md`.
+This repository contains the complete standalone CAS I/O TONE browser lab. Read README.md, GRID-RECORDINGS.md and REVIEW-FIXES.md. All modules are included; dist/ is generated output.
 
 ## Reproduce
 
@@ -10,26 +10,31 @@ npm run build
 python serve.py
 ```
 
-There are 99 passing Node checks; no dependency installation is needed. The generated standalone files live in dist/. Test the source page at localhost and the packaged page at /dist/index.html. Existing imports are relative and the bundler embeds them in the correct order.
+There are 116 dependency-free Node checks. Test the modular app at localhost and the standalone app at /dist/index.html. CI runs the tests/build and verifies the committed standalone output matches source.
 
-## What changed after the review
+## Follow-up review addressed in v13
 
-1. Plot ranges use pitched frames only; unpitched frames share the lower-left pool.
-2. PCA uses PC1/PC2 balanced column ranking, avoiding greedy placement by source time.
-3. Held period buffers no longer fade to zero on each wrap. Start/stop has a voice envelope.
-4. Length below one centers the source cut and applies a full Hann window at the shorter duration.
-5. Arrow navigation skips holes and finds nearby occupied cells in the intended direction. Selection owns the grid tab stop.
-6. A local HTML media element reads metadata before arrayBuffer/decodeAudioData. Unknown/long durations fail closed, and decoded duration is rechecked.
-7. Pitch search extends to about 4 kHz; positive autocorrelation lobes are grouped to avoid small-lag noise peaks.
-8. Low-pitch residual masking leaves spectral gaps and declares resolution limits.
-9. Static random/knight patterns now use the autoplay seed.
-10. ARIA rows, harmonic image descriptions, score grouping, valid fractional number steps, updated captions and duration/sample-count export metadata are included.
-11. Default 8x8 pooling and explicit member controls keep the grid playable without losing source-frame access.
+- Pitch-only 40 Hz forward/backward filtering uses reflected padding to reject sub-range rumble without a first-frame transient. The chosen-lag confidence can also use the raw repeat correlation; waveform samples and harmonic FFT remain unfiltered.
+- Every non-loop buffer, including Period-cut fallback, keys its shortened window length. Shared helpers define live/offline buffer, duration and envelope decisions.
+- Middle pooled members drive colors, default selection and timbre distance. Seeded static patterns and autoplay reach all members.
+- Sparse walk/knight fallback moves to other nearby occupied sites. Extinct Life reseeds another occupied area.
+- Page/keyboard/loop groups have labeled ARIA roles. Unknown WebM duration gets a bounded native media seek before payload/decode; unresolved duration fails closed.
 
-## Suggested independent follow-up
+The previous v12 fixes remain covered by their existing regression suite.
 
-Re-run synthetic saw/sine/noisy-tone cases, layout neighbor-distance comparisons and repeated-source order permutations. The relevant new suite is tests/review-regressions.test.mjs. Compare real steady and drifting held sounds, short-grain level, native metadata preflight behavior across browser codecs, and keyboard/screen-reader behavior. No private recordings are required: the demo is generated in harmonic-grid.js.
+## New recording paths
 
-Known limits remain explicit in README/REVIEW-FIXES: approximate monophonic f0 from short frames, residual leakage at low pitch, rank distortion rather than metric PCA embedding, possible seams for changing audio, source-rate transposition, bounded native grain count, no score importer and no firmware port.
+- grid-recording.js validates take v3, packages exact Float32 PCM as base64, migrates compatible score v2, generates eight-partial magnitude presets and renders one score pass through the CAS DSP.
+- take-store.js saves takes in IndexedDB and lists summaries without retaining all source payloads.
+- palette.js captures source/score/settings/selection, restores takes/configuration, records pointer/arrow intervals and replays audio, selection-only or both. Source frame IDs survive mapping changes and pooled-cell selection.
+- app.js supplies synth/effect/tempo and hardware-panel navigation snapshots. Generated harmonic patches use the existing two carriers and six direct operators, with no firmware changes.
 
-Treat the dist/ files as generated output. Edit modules, run the checks/build, and include regenerated HTML in changes. The CI workflow repeats those checks on Node 22 and verifies dist/ is current.
+The new tests/grid-recording.test.mjs has 17 meaningful checks, including phased rumble, sparse grids, metadata seek cleanup, exact PCM/timing round-trips, malformed imports, legacy migration, measured harmonic spectra, live-input DSP parity, rests/chords, deterministic tails and render/voice bounds.
+
+Native browser checks cover a saved take across reloads, JSON import, actual grid playback, selection-only replay while AUDIO ASLEEP, fixed selection during audio-only replay, captured page/grid settings, generated patch export/import and 320/390-pixel layout. An eight-step browser WAV matched the exported take's fresh offline render byte for byte after PCM16 encoding. A one-second headerless WebM loaded; a 31-second headerless WebM was rejected during metadata preflight.
+
+## Limits and useful next checks
+
+A take snapshots settings at save/export/render time; it does not automate every knob motion. Grid WAV starts with fresh effects histories and excludes unrelated live notes/recall RAM clips. Offline interpolation is linear; native resampling may differ. The source cap is 30 seconds, score cap 4096 steps, WAV cap 120 seconds including tails, and active-grain cap 32. Legacy v2 metadata cannot prove audio identity. f0/residual features remain approximate; harmonic presets use eight magnitudes, without original phase/noise. Spectral morphing and firmware ports remain future work.
+
+Useful independent follow-up: compare real changing/steady sources, different browser codecs, IndexedDB quota errors, multi-voice high-overlap native scheduling versus offline output, and screen-reader behavior. Use generated or user-owned test audio; do not add recordings, banks, credentials, private history or machine-specific paths to the repository.
